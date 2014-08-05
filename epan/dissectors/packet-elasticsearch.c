@@ -26,22 +26,68 @@
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328;
 // ^ wtf the above doesn't work
+#define ELASTICSEARCH_INTERNAL_HEADER 0x01090804
 
 static int proto_elasticsearch = -1;
 
+static gint ett_elasticsearch = -1;
+
 void proto_register_elasticsearch(void) {
+
+	static gint *ett[] = {
+			&ett_elasticsearch,
+	};
+
 	proto_elasticsearch = proto_register_protocol(
 			"Elasticsearch",
 			"Elasticsearch",
-			"elasticsearch"
-			);
+			"elasticsearch");
+
+	proto_register_subtree_array(ett, array_length(ett));
+
+}
+
+static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+
+//	guint32 internal_header;
+//	guint32 version;
+
+	/* Let the user know its a discovery packet */
+	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
+
+
+	/* Add the internal header */
+//	proto_tree_add_bits_item();
+//	offset += 4;
+
+	(void)offset;
+	(void)tree;
+	(void)tvb;
 
 }
 
 static void dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree){
 
-	col_set_str(pinfo->cinfo, COL_PROTOCOL, "ELASTICSEARCH");
+	int offset = 0;
+	proto_item *root_elasticsearch_item;
+	proto_tree *elasticsearch_tree;
+
+	guint32 internal_header;
+
+
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
 	col_clear(pinfo->cinfo, COL_INFO);
+
+	root_elasticsearch_item = proto_tree_add_item(tree, proto_elasticsearch, tvb, 0, -1, ENC_NA);
+	elasticsearch_tree = proto_item_add_subtree(root_elasticsearch_item,ett_elasticsearch);
+
+
+	internal_header = tvb_get_ntohl(tvb,offset);
+	if(internal_header == ELASTICSEARCH_INTERNAL_HEADER){
+		dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
+	}
+
+
 
 	(void)tvb;
 	(void)pinfo;
