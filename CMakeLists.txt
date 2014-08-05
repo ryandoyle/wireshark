@@ -121,7 +121,6 @@ include_directories(
 	${CMAKE_BINARY_DIR}
 	${CMAKE_SOURCE_DIR}
 	${CMAKE_SOURCE_DIR}/epan
-	${CMAKE_SOURCE_DIR}/filetap
 	${CMAKE_SOURCE_DIR}/tools/lemon
 	${CMAKE_SOURCE_DIR}/wiretap
 )
@@ -196,43 +195,15 @@ if( CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		${WARNINGS_CFLAGS}
 	)
 else()
-	if(OSX_DEPLOY_TARGET)
+	if(CMAKE_OSX_DEPLOYMENT_TARGET)
 		if(APPLE)
-			if(${OSX_DEPLOY_TARGET} STREQUAL "10.0")
+			if(${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.0")
 				message(FATAL_ERROR "We don't support building for OS X 10.0")
-			elseif(${OSX_DEPLOY_TARGET} STREQUAL "10.1")
+			elseif(${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.1")
 				message(FATAL_ERROR "We don't support building for OS X 10.1")
-			elseif(${OSX_DEPLOY_TARGET} STREQUAL "10.2")
+			elseif(${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.2")
 				message(FATAL_ERROR "We don't support building for OS X 10.2")
-			elseif(${OSX_DEPLOY_TARGET} STREQUAL "10.3")
-				# XXX - never tested.
-				set(SDKPATH "/Developer/SDKs/MacOSX10.3.9.sdk")
-			else()
-				find_file(SDKPATH
-				    MacOSX${OSX_DEPLOY_TARGET}.sdk
-				    PATHS
-					/Developer/SDKs
-					/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs
-					/Library/Developer/CommandLineTools/SDKs
-				    NO_DEFAULT_PATH
-				)
-				if(R{SDKPATH} STREQUAL "SDKPATH-NOTFOUND")
-					message(FATAL_ERROR "We couldn't find the SDK for OS X ${OSX_DEPLOY_TARGET}")
-				endif()
-			endif()
-			#
-			# Add a -mmacosx-version-min flag to force tests
-			# that use the compiler, as well as the build
-			# itself, not to, for example, use compiler or
-			# linker features not supported by the minimum
-			# targeted version of the OS.
-			#
-			# Add an -isysroot flag to use the SDK.
-			#
-			set(CMAKE_C_FLAGS "-mmacosx-version-min=${OSX_DEPLOY_TARGET} -isysroot ${SDKPATH} ${CMAKE_C_FLAGS}")
-			set(CMAKE_CXX_FLAGS "-mmacosx-version-min=${OSX_DEPLOY_TARGET} -isysroot ${SDKPATH} ${CMAKE_CXX_FLAGS}")
-			set(WS_LINK_FLAGS "-mmacosx-version-min=${OSX_DEPLOY_TARGET} -isysroot ${SDKPATH} ${WS_LINK_FLAGS}")
-			if(${OSX_DEPLOY_TARGET} STREQUAL "10.4" OR ${OSX_DEPLOY_TARGET} STREQUAL "10.5")
+			elseif(${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.4" OR ${CMAKE_OSX_DEPLOYMENT_TARGET} STREQUAL "10.5")
 				#
 				# Only 32-bit builds are supported.  10.5
 				# (and 10.4?) had a bug that causes some BPF
@@ -243,9 +214,9 @@ else()
 				set(CMAKE_CXX_FLAGS "-m32 ${CMAKE_CXX_FLAGS}")
 				set(WS_LINK_FLAGS "-m32 ${WS_LINK_FLAGS}")
 			endif()
-			message(STATUS "Building for OS X ${OSX_DEPLOY_TARGET}")
+			message(STATUS "Building for OS X ${CMAKE_OSX_DEPLOYMENT_TARGET}")
 		else()
-			message(FATAL_ERROR "OSX_DEPLOY_TARGET only applies when building for OS X")
+			message(FATAL_ERROR "CMAKE_OSX_DEPLOYMENT_TARGET only applies when building for OS X")
 		endif()
 	endif()
 
@@ -822,14 +793,13 @@ add_subdirectory( capchild )
 add_subdirectory( caputils )
 add_subdirectory( codecs )
 add_subdirectory( epan )
-add_subdirectory( filetap )
 add_subdirectory( tools/lemon )
 add_subdirectory( ui )
 add_subdirectory( wiretap )
 add_subdirectory( wsutil )
 
 if(NOT WIN32)
-	add_custom_target(dumpabi DEPENDS dumpabi-libwireshark dumpabi-libfiletap dumpabi-libwiretap dumpabi-libwsutil color.h)
+	add_custom_target(dumpabi DEPENDS dumpabi-libwireshark dumpabi-libwiretap dumpabi-libwsutil color.h)
 endif()
 
 if(ENABLE_ECHLD)
@@ -909,7 +879,6 @@ set( IN_FILES
 	image/editcap.rc.in
 	image/captype.rc.in
 	image/libwsutil.rc.in
-	image/filetap.rc.in
 	image/wiretap.rc.in
 	packaging/macosx/Info.plist.in
 	plugins/ethercat/plugin.rc.in
@@ -951,7 +920,6 @@ link_directories(
 	${CMAKE_BINARY_DIR}/caputils
 	${CMAKE_BINARY_DIR}/codecs
 	${CMAKE_BINARY_DIR}/epan
-	${CMAKE_BINARY_DIR}/filetap
 	${CMAKE_BINARY_DIR}/wiretap
 	${CMAKE_BINARY_DIR}/wsutil
 )
@@ -1175,7 +1143,6 @@ endif()
 
 if(BUILD_tfshark)
 	set(tfshark_LIBS
-		filetap
 		ui
 		${LIBEPAN_LIBS}
 		${APPLE_CORE_FOUNDATION_LIBRARY}

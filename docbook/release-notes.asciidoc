@@ -120,6 +120,8 @@ iSER
 OptoMMP
 corosync/totemnet
 corosync/totemsrp
+ceph
+Stateless Transport Tunneling
 --sort-and-group--
 
 === Updated Protocol Support
