@@ -31,6 +31,7 @@
 static int proto_elasticsearch = -1;
 
 static int hf_elasticsearch_internal_header = -1;
+static int hf_elasticsearch_version = -1;
 
 static gint ett_elasticsearch = -1;
 
@@ -40,6 +41,13 @@ void proto_register_elasticsearch(void) {
         { &hf_elasticsearch_internal_header,
           { "Internal header", "elasticsearch.internal_header",
             FT_UINT32, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_version,
+          { "Version", "elasticsearch.version",
+            FT_UINT32, BASE_DEC,
             NULL, 0x0,
             NULL, HFILL
           }
@@ -60,7 +68,50 @@ void proto_register_elasticsearch(void) {
 
 }
 
+static int bytes_in_vint(tvbuff_t *tvb, int offset){
+    int bytes = 1;
+    guint8 byte = tvb_get_guint8(tvb, offset);
+    while((byte & 0x80) != 0 && bytes < 6){
+        byte = tvb_get_guint8(tvb, offset + bytes);
+        bytes += 1;
+    }
+    if(bytes > 5){
+        // Variable length encoded ints should never be larger than this! 
+        return -1;
+    }
+    return bytes;
+}
+
+static int read_vint(tvbuff_t *tvb, int offset){
+    guint8 b = tvb_get_guint8(tvb, offset);
+    int i = b & 0x7F;
+    if ((b & 0x80) == 0) {
+        return i;
+    }
+    b = tvb_get_guint8(tvb, offset+1); 
+    i |= (b & 0x7F) << 7;
+    if ((b & 0x80) == 0) {
+        return i;
+    }
+    b = tvb_get_guint8(tvb, offset+2); 
+    i |= (b & 0x7F) << 14;
+    if ((b & 0x80) == 0) {
+        return i;
+    }
+    b = tvb_get_guint8(tvb, offset+3); 
+    i |= (b & 0x7F) << 21;
+    if ((b & 0x80) == 0) {
+        return i;
+    }
+    b = tvb_get_guint8(tvb, offset+4); 
+    // FIXME: need some assertion like assert (b & 0x80) == 0; 
+    return i | ((b & 0x7F) << 28);
+
+}
+
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+    int vint_length;
+    int version;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -70,9 +121,17 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 	proto_tree_add_item(tree, hf_elasticsearch_internal_header, tvb, offset, 4, ENC_BIG_ENDIAN);
 	offset += 4;
 
+    /* Add the variable length encoded version string */
+    vint_length = bytes_in_vint(tvb, offset);
+    version = read_vint(tvb, offset);
+    proto_tree_add_uint(tree, hf_elasticsearch_version, tvb, offset, vint_length, version);
+    offset += vint_length;
+
 	(void)offset;
 	(void)tree;
 	(void)tvb;
+    (void)vint_length;
+    (void)version;
 
 }
 
