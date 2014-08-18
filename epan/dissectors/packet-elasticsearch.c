@@ -39,7 +39,7 @@ void proto_register_elasticsearch(void) {
     static hf_register_info hf[] = {
         { &hf_elasticsearch_internal_header,
           { "Internal header", "elasticsearch.internal_header",
-            FT_BYTES, BASE_NONE,
+            FT_UINT32, BASE_HEX,
             NULL, 0x0,
             NULL, HFILL
           }
@@ -61,9 +61,6 @@ void proto_register_elasticsearch(void) {
 }
 
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
-
-//	guint32 internal_header;
-//	guint32 version;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
