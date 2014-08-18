@@ -30,9 +30,21 @@
 
 static int proto_elasticsearch = -1;
 
+static int hf_elasticsearch_internal_header = -1;
+
 static gint ett_elasticsearch = -1;
 
 void proto_register_elasticsearch(void) {
+
+    static hf_register_info hf[] = {
+        { &hf_elasticsearch_internal_header,
+          { "Internal header", "elasticsearch.internal_header",
+            FT_BYTES, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+    };
 
 	static gint *ett[] = {
 			&ett_elasticsearch,
@@ -43,6 +55,7 @@ void proto_register_elasticsearch(void) {
 			"Elasticsearch",
 			"elasticsearch");
 
+    proto_register_field_array(proto_elasticsearch, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
 
 }
@@ -57,8 +70,8 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
 
 	/* Add the internal header */
-//	proto_tree_add_bits_item();
-//	offset += 4;
+	proto_tree_add_item(tree, hf_elasticsearch_internal_header, tvb, offset, 4, ENC_BIG_ENDIAN);
+	offset += 4;
 
 	(void)offset;
 	(void)tree;
