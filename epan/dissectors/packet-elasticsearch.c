@@ -28,6 +28,13 @@
 // ^ wtf the above doesn't work
 #define ELASTICSEARCH_INTERNAL_HEADER 0x01090804
 
+
+typedef struct {
+    int length;
+    int value;
+} vint_t;
+
+
 static int proto_elasticsearch = -1;
 
 static int hf_elasticsearch_internal_header = -1;
@@ -76,50 +83,42 @@ void proto_register_elasticsearch(void) {
 
 }
 
-static int bytes_in_vint(tvbuff_t *tvb, int offset){
-    int bytes = 1;
-    guint8 byte = tvb_get_guint8(tvb, offset);
-    while((byte & 0x80) != 0 && bytes < 6){
-        byte = tvb_get_guint8(tvb, offset + bytes);
-        bytes += 1;
-    }
-    if(bytes > 5){
-        // Variable length encoded ints should never be larger than this! 
-        return -1;
-    }
-    return bytes;
-}
-
-static int read_vint(tvbuff_t *tvb, int offset){
+static vint_t read_vint(tvbuff_t *tvb, int offset){
+    vint_t vint;
     guint8 b = tvb_get_guint8(tvb, offset);
-    int i = b & 0x7F;
+    vint.value = b & 0x7F;
     if ((b & 0x80) == 0) {
-        return i;
+        vint.length = 1;
+        return vint;
     }
     b = tvb_get_guint8(tvb, offset+1); 
-    i |= (b & 0x7F) << 7;
+    vint.value |= (b & 0x7F) << 7;
     if ((b & 0x80) == 0) {
-        return i;
+        vint.length = 2;
+        return vint;
     }
     b = tvb_get_guint8(tvb, offset+2); 
-    i |= (b & 0x7F) << 14;
+    vint.value |= (b & 0x7F) << 14;
     if ((b & 0x80) == 0) {
-        return i;
+        vint.length = 3;
+        return vint;
     }
     b = tvb_get_guint8(tvb, offset+3); 
-    i |= (b & 0x7F) << 21;
+    vint.value |= (b & 0x7F) << 21;
     if ((b & 0x80) == 0) {
-        return i;
+        vint.length = 4;
+        return vint;
     }
     b = tvb_get_guint8(tvb, offset+4); 
     // FIXME: need some assertion like assert (b & 0x80) == 0; 
-    return i | ((b & 0x7F) << 28);
+    vint.length = 5;
+    vint.value |= ((b & 0x7F) << 28);
+    return vint;
 
 }
 
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
-    int vint_length;
-    int version;
+    vint_t version;
     char version_string[9]; /* semantic style versioning 10.99.88 */
 
 	/* Let the user know its a discovery packet */
@@ -131,14 +130,13 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 	offset += 4;
 
     /* Add the variable length encoded version string */
-    vint_length = bytes_in_vint(tvb, offset);
     version = read_vint(tvb, offset);
-    g_snprintf(version_string, sizeof(version_string), "%d.%d.%d", (version / 1000000) % 100,
-        (version / 10000) % 100, (version/ 100) % 100);
-    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, vint_length, version,
-        "%d (%s)" ,version, version_string);
+    g_snprintf(version_string, sizeof(version_string), "%d.%d.%d", (version.value / 1000000) % 100,
+        (version.value / 10000) % 100, (version.value/ 100) % 100);
+    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, version.length, version.value,
+        "%d (%s)" ,version.value, version_string);
     col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version_string);
-    offset += vint_length;
+    offset += version.length;
 
     /* Ping request ID */
     proto_tree_add_item(tree, hf_elasticsearch_ping_request_id, tvb, offset, 4, ENC_BIG_ENDIAN);
@@ -147,7 +145,6 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 	(void)offset;
 	(void)tree;
 	(void)tvb;
-    (void)vint_length;
     (void)version;
 
 }
