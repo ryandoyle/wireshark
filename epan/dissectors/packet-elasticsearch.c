@@ -32,6 +32,7 @@ static int proto_elasticsearch = -1;
 
 static int hf_elasticsearch_internal_header = -1;
 static int hf_elasticsearch_version = -1;
+static int hf_elasticsearch_ping_request_id = -1;
 
 static gint ett_elasticsearch = -1;
 
@@ -47,6 +48,13 @@ void proto_register_elasticsearch(void) {
         },
         { &hf_elasticsearch_version,
           { "Version", "elasticsearch.version",
+            FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_ping_request_id,
+          { "Ping ID", "elasticsearch.ping_request_id",
             FT_UINT32, BASE_DEC,
             NULL, 0x0,
             NULL, HFILL
@@ -129,8 +137,12 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
         (version / 10000) % 100, (version/ 100) % 100);
     proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, vint_length, version,
         "%d (%s)" ,version, version_string);
-    offset += vint_length;
     col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version_string);
+    offset += vint_length;
+
+    /* Ping request ID */
+    proto_tree_add_item(tree, hf_elasticsearch_ping_request_id, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
 
 	(void)offset;
 	(void)tree;
