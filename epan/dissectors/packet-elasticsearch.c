@@ -112,6 +112,7 @@ static int read_vint(tvbuff_t *tvb, int offset){
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
     int vint_length;
     int version;
+    char version_string[9]; /* semantic style versioning 10.99.88 */
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -124,8 +125,12 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     /* Add the variable length encoded version string */
     vint_length = bytes_in_vint(tvb, offset);
     version = read_vint(tvb, offset);
-    proto_tree_add_uint(tree, hf_elasticsearch_version, tvb, offset, vint_length, version);
+    g_snprintf(version_string, sizeof(version_string), "%d.%d.%d", (version / 1000000) % 100,
+        (version / 10000) % 100, (version/ 100) % 100);
+    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, vint_length, version,
+        "%d (%s)" ,version, version_string);
     offset += vint_length;
+    col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version_string);
 
 	(void)offset;
 	(void)tree;
