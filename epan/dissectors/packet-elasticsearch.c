@@ -40,6 +40,7 @@ static int proto_elasticsearch = -1;
 static int hf_elasticsearch_internal_header = -1;
 static int hf_elasticsearch_version = -1;
 static int hf_elasticsearch_ping_request_id = -1;
+static int hf_elasticsearch_cluster_name= -1;
 
 static gint ett_elasticsearch = -1;
 
@@ -63,6 +64,13 @@ void proto_register_elasticsearch(void) {
         { &hf_elasticsearch_ping_request_id,
           { "Ping ID", "elasticsearch.ping_request_id",
             FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_cluster_name,
+          { "Cluster name", "elasticsearch.cluster_name",
+            FT_STRING, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL
           }
@@ -120,6 +128,7 @@ static vint_t read_vint(tvbuff_t *tvb, int offset){
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
     vint_t version;
     char version_string[9]; /* semantic style versioning 10.99.88 */
+    vint_t cluster_name;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -141,6 +150,13 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     /* Ping request ID */
     proto_tree_add_item(tree, hf_elasticsearch_ping_request_id, tvb, offset, 4, ENC_BIG_ENDIAN);
     offset += 4;
+
+    /* Cluster name */
+    cluster_name = read_vint(tvb, offset);
+    offset += cluster_name.length;
+    proto_tree_add_item(tree, hf_elasticsearch_cluster_name, tvb, offset, cluster_name.value, ENC_UTF_8|ENC_NA);
+    col_append_fstr(pinfo->cinfo, COL_INFO, ", cluster: %s",
+        tvb_get_string_enc(wmem_packet_scope(), tvb, offset, cluster_name.value, ENC_UTF_8));
 
 	(void)offset;
 	(void)tree;
