@@ -190,7 +190,7 @@ MSVC_VARIANT=MSVC2010EE
 NASM=$(WIRESHARK_LIB_DIR)\nasm-2.09.08\nasm.exe
 
 #
-# Optional: the Python interpreter is used as part of the buildsystem
+# The Python interpreter is used as part of the buildsystem
 #
 # This will override the automatic detection below.
 #PYTHON_VER=27
@@ -227,6 +227,11 @@ PYTHON_DIR=C:\Python$(PYTHON_VER)
 !IF DEFINED(PYTHON_DIR)
 PYTHON="$(PYTHON_DIR)\python.exe"
 PATH=$(PYTHON_DIR);$(PATH)
+!ENDIF
+
+# If all else fails, try to find it on the PATH
+!IF !DEFINED(PYTHON)
+PYTHON=python
 !ENDIF
 
 #### Save files as pcap-ng by default. Comment out to use pcap instead. ####
@@ -787,6 +792,11 @@ SH_FLAGS=-o igncr
 
 SH=$(SH_PROG) $(SH_FLAGS)
 
+# PowerShell
+# Compatibility testing (...or should we always force version 2?)
+#POWERSHELL=powershell -Version 2.0 -executionpolicy bypass -File
+# Normal
+POWERSHELL=powershell -executionpolicy bypass -File
 
 # command for perl (cygwin's perl package recommended)
 PERL=perl
@@ -799,30 +809,40 @@ POD2HTML=$(SH) pod2html
 # command for sed (cygwin's sed recommended)
 SED=sed
 
-# Command for lex/flexx. Cygwin's flex or Chocolatey's win_flex
+# Command for Flex. Cygwin's flex or Chocolatey's win_flex
 # recommended.
 # Absolute or relative paths must be Windows-style
 
-# Chocolatey's C:\Chocolatey\bin\win_flex and -\win_bison are
-# currently unusable without some manual adjustments to the
-# win_flex and win_bison wrapper scripts. Calling the executables
-# directly should work.
+#LEX=\custom\path\to\flex
 
-#LEX=win_flex
-#LEX=C:\Chocolatey\lib\winflexbison.2.4.1.20140103\tools\win_flex
+# Find flex automatically
+!IF !DEFINED(LEX)
+!IF DEFINED(CHOCOLATEYINSTALL) && EXIST("$(CHOCOLATEYINSTALL)\bin\win_flex.exe")
+LEX=$(CHOCOLATEYINSTALL)\bin\win_flex
+!ELSE IF EXIST("$(CYGWIN_PATH)\flex.exe")
+# We add Cygwin to PATH below.
 LEX=flex
+!ENDIF
+!ENDIF
 
-# Command for yacc/bison. Cygwin's bison or Chocolatey's win_bison
+# Command for Bison. Cygwin's bison or Chocolatey's win_bison
 # recommended.
 # Absolute or relative paths must be Windows-style
 
-#YACC=win_bison
-#YACC=C:\Chocolatey\lib\winflexbison.2.4.1.20140103\tools\win_bison
-YACC=bison
+#YACC=\custom\path\to\bison
 
-# Commands to convert UNIX line endings to DOS/Windows
-UNIX2DOS=u2d
-TEXTIFY=$(SH) $(TOOLS_DIR)/textify.sh
+# Find bison automatically
+!IF !DEFINED(YACC)
+!IF DEFINED(CHOCOLATEYINSTALL) && EXIST("$(CHOCOLATEYINSTALL)\bin\win_bison.exe")
+YACC=$(CHOCOLATEYINSTALL)\bin\win_bison
+!ELSE IF EXIST("$(CYGWIN_PATH)\bison.exe")
+# We add Cygwin to PATH below.
+YACC=bison
+!ENDIF
+!ENDIF
+
+# Make our text files Windows-native
+TEXTIFY=$(POWERSHELL) $(TOOLS_DIR)/textify.ps1
 
 #
 # Optional: Build the NSIS installer.

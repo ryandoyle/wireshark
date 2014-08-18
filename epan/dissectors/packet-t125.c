@@ -87,9 +87,6 @@ static int hf_t125_connect_result = -1;           /* Connect_Result */
 /* Initialize the subtree pointers */
 static int ett_t125 = -1;
 
-static int hf_t125_connectData = -1;
-static int hf_t125_heur = -1;
-
 
 /*--- Included file: packet-t125-ett.c ---*/
 #line 1 "../../asn1/t125/packet-t125-ett.c"
@@ -101,7 +98,7 @@ static gint ett_t125_Connect_Result_U = -1;
 static gint ett_t125_ConnectMCSPDU = -1;
 
 /*--- End of included file: packet-t125-ett.c ---*/
-#line 56 "../../asn1/t125/packet-t125-template.c"
+#line 53 "../../asn1/t125/packet-t125-template.c"
 
 static heur_dissector_list_t t125_heur_subdissector_list;
 
@@ -387,7 +384,7 @@ static int dissect_ConnectMCSPDU_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, 
 
 
 /*--- End of included file: packet-t125-fn.c ---*/
-#line 60 "../../asn1/t125/packet-t125-template.c"
+#line 57 "../../asn1/t125/packet-t125-template.c"
 
 static int
 dissect_t125(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void *data _U_)
@@ -424,11 +421,7 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
   gint8 ber_class;
   gboolean pc;
   gint32 tag;
-  guint32 choice_index = 100;
-  asn1_ctx_t asn1_ctx;
   volatile gboolean failed;
-
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_PER, TRUE, pinfo);
 
   /*
    * We must catch all the "ran past the end of the packet" exceptions
@@ -452,23 +445,6 @@ dissect_t125_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, vo
     return TRUE;
   }
 
-  failed = FALSE;
-  TRY {
-    /* or PER */
-    dissect_per_constrained_integer(tvb, 0, &asn1_ctx,
-                                    NULL, hf_t125_heur, 0, 42,
-                                    &choice_index, FALSE);
-  } CATCH_BOUNDS_ERRORS {
-    failed = TRUE;
-  } ENDTRY;
-
-  /* is this strong enough ? */
-  if (!failed && (choice_index <=42)) {
-    dissect_t125(tvb, pinfo, parent_tree, NULL);
-
-    return TRUE;
-  }
-
   return FALSE;
 }
 
@@ -478,14 +454,6 @@ void proto_register_t125(void) {
 
   /* List of fields */
   static hf_register_info hf[] = {
-    { &hf_t125_connectData,
-      { "connectData", "t125.connectData",
-        FT_NONE, BASE_NONE, NULL, 0,
-        NULL, HFILL }},
-    { &hf_t125_heur,
-      { "heuristic", "t125.heuristic",
-        FT_UINT32, BASE_DEC, NULL, 0,
-        NULL, HFILL }},
 
 /*--- Included file: packet-t125-hfarr.c ---*/
 #line 1 "../../asn1/t125/packet-t125-hfarr.c"
@@ -591,7 +559,7 @@ void proto_register_t125(void) {
         NULL, HFILL }},
 
 /*--- End of included file: packet-t125-hfarr.c ---*/
-#line 159 "../../asn1/t125/packet-t125-template.c"
+#line 127 "../../asn1/t125/packet-t125-template.c"
   };
 
   /* List of subtrees */
@@ -608,7 +576,7 @@ void proto_register_t125(void) {
     &ett_t125_ConnectMCSPDU,
 
 /*--- End of included file: packet-t125-ettarr.c ---*/
-#line 165 "../../asn1/t125/packet-t125-template.c"
+#line 133 "../../asn1/t125/packet-t125-template.c"
   };
 
   /* Register protocol */

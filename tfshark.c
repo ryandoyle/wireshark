@@ -51,7 +51,7 @@
 #endif
 
 #ifdef HAVE_LIBZ
-#include <zlib.h>	/* to get the libz version number */
+#include <zlib.h>      /* to get the libz version number */
 #endif
 
 #ifndef HAVE_GETOPT
@@ -751,29 +751,29 @@ show_version(GString *comp_info_str, GString *runtime_info_str)
 static void
 get_tfshark_compiled_version_info(GString *str)
 {
-	/* LIBZ */
+  /* LIBZ */
 #ifdef HAVE_LIBZ
-	g_string_append(str, "with libz ");
+  g_string_append(str, "with libz ");
 #ifdef ZLIB_VERSION
-	g_string_append(str, ZLIB_VERSION);
+  g_string_append(str, ZLIB_VERSION);
 #else /* ZLIB_VERSION */
-	g_string_append(str, "(version unknown)");
+  g_string_append(str, "(version unknown)");
 #endif /* ZLIB_VERSION */
 #else /* HAVE_LIBZ */
-	g_string_append(str, "without libz");
+  g_string_append(str, "without libz");
 #endif /* HAVE_LIBZ */
 }
 
 static void
 get_tfshark_runtime_version_info(GString *str)
 {
-    /* zlib */
+  /* zlib */
 #if defined(HAVE_LIBZ) && !defined(_WIN32)
-    g_string_append_printf(str, ", with libz %s", zlibVersion());
+  g_string_append_printf(str, ", with libz %s", zlibVersion());
 #endif
 
-    /* stuff used by libwireshark */
-    epan_get_runtime_version_info(str);
+  /* stuff used by libwireshark */
+  epan_get_runtime_version_info(str);
 }
 
 int
@@ -972,7 +972,6 @@ main(int argc, char *argv[])
   register_all_plugin_tap_listeners();
 #endif
   register_all_tap_listeners();
-  conversation_table_set_gui_info(NULL); * XXX - TODO: Provide GUI function for tfshark *
   */
 
   /* If invoked with the "-G" flag, we dump out information based on

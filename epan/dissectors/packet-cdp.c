@@ -38,15 +38,13 @@
 /*
  * See
  *
- *      http://www.cisco.com/univercd/cc/td/doc/product/lan/trsrb/frames.htm#xtocid12
+ *	http://www.cisco.com/c/en/us/td/docs/ios-xml/ios/cdp/configuration/15-mt/cdp-15-mt-book/nm-cdp-discover.html#GUID-84FBA50B-677C-4D90-AF56-2FB96F2DC085
  *
- * for some information on CDP.
+ * and
  *
- * See
+ *      http://www.cisco.com/c/en/us/support/docs/switches/catalyst-4500-series-switches/13414-103.html#cdp
  *
- *      http://www.cisco.com/en/US/products/hw/switches/ps663/products_tech_note09186a0080094713.shtml#cdp
- *
- * for some more information on CDP version 2.
+ * for some more information on CDP version 2 (a superset of version 1).
  */
 
 void proto_register_cdp(void);
@@ -282,12 +280,10 @@ dissect_cdp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
           padded_buffer[data_length-1]--;
         }
         /* Setup checksum routine data buffer */
-        cksum_vec[0].ptr = padded_buffer;
-        cksum_vec[0].len = data_length+1;
+        SET_CKSUM_VEC_PTR(cksum_vec[0], padded_buffer, data_length+1);
     } else {
         /* Setup checksum routine data buffer */
-        cksum_vec[0].ptr = tvb_get_ptr(tvb, 0, data_length);
-        cksum_vec[0].len = data_length;
+        SET_CKSUM_VEC_TVB(cksum_vec[0], tvb, 0, data_length);
     }
 
     computed_checksum = in_cksum(cksum_vec, 1);

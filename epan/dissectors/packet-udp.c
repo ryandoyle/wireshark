@@ -321,12 +321,40 @@ static ct_dissector_info_t udp_ct_dissector_info = {&udp_conv_get_filter_type};
 static int
 udpip_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
 {
-  conv_hash_t *hash = (conv_hash_t*) pct;
-  const e_udphdr *udphdr=(const e_udphdr *)vip;
+    conv_hash_t *hash = (conv_hash_t*) pct;
+    const e_udphdr *udphdr=(const e_udphdr *)vip;
 
   add_conversation_table_data(hash, &udphdr->ip_src, &udphdr->ip_dst, udphdr->uh_sport, udphdr->uh_dport, 1, pinfo->fd->pkt_len, &pinfo->rel_ts, &pinfo->fd->abs_ts, &udp_ct_dissector_info, PT_UDP);
 
-  return 1;
+    return 1;
+}
+
+static const char* udp_host_get_filter_type(hostlist_talker_t* host _U_, conv_filter_type_e filter)
+{
+    return udp_conv_get_filter_type(NULL, filter);
+}
+
+static hostlist_dissector_info_t udp_host_dissector_info = {&udp_host_get_filter_type};
+
+static int
+udpip_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
+{
+    conv_hash_t *hash = (conv_hash_t*) pit;
+    const e_udphdr *udphdr=(const e_udphdr *)vip;
+
+    /* Take two "add" passes per packet, adding for each direction, ensures that all
+    packets are counted properly (even if address is sending to itself)
+    XXX - this could probably be done more efficiently inside hostlist_table */
+    add_hostlist_table_data(hash, &udphdr->ip_src, udphdr->uh_sport, TRUE, 1, pinfo->fd->pkt_len, &udp_host_dissector_info, PT_UDP);
+    add_hostlist_table_data(hash, &udphdr->ip_dst, udphdr->uh_dport, FALSE, 1, pinfo->fd->pkt_len, &udp_host_dissector_info, PT_UDP);
+
+    return 1;
+}
+
+static const char*
+udpip_hostlist_prefix(void)
+{
+    return "endpoints";
 }
 
 /* Attach process info to a flow */
@@ -655,11 +683,8 @@ dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 ip_proto)
     if (((ip_proto == IP_PROTO_UDP) && udp_check_checksum) ||
         ((ip_proto == IP_PROTO_UDPLITE) && udplite_check_checksum)) {
       /* Set up the fields of the pseudo-header. */
-      cksum_vec[0].ptr = (const guint8 *)pinfo->src.data;
-      cksum_vec[0].len = pinfo->src.len;
-      cksum_vec[1].ptr = (const guint8 *)pinfo->dst.data;
-      cksum_vec[1].len = pinfo->dst.len;
-      cksum_vec[2].ptr = (const guint8 *)&phdr;
+      SET_CKSUM_VEC_PTR(cksum_vec[0], (const guint8 *)pinfo->src.data, pinfo->src.len);
+      SET_CKSUM_VEC_PTR(cksum_vec[1], (const guint8 *)pinfo->dst.data, pinfo->dst.len);
       switch (pinfo->src.type) {
 
       case AT_IPv4:
@@ -667,7 +692,7 @@ dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 ip_proto)
           phdr[0] = g_htonl((ip_proto<<16) | udph->uh_ulen);
         else
           phdr[0] = g_htonl((ip_proto<<16) | reported_len);
-        cksum_vec[2].len = 4;
+        SET_CKSUM_VEC_PTR(cksum_vec[2], (const guint8 *)&phdr, 4);
         break;
 
       case AT_IPv6:
@@ -676,7 +701,7 @@ dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 ip_proto)
         else
           phdr[0] = g_htonl(reported_len);
         phdr[1] = g_htonl(ip_proto);
-        cksum_vec[2].len = 8;
+        SET_CKSUM_VEC_PTR(cksum_vec[2], (const guint8 *)&phdr, 8);
         break;
 
       default:
@@ -684,8 +709,7 @@ dissect(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, guint32 ip_proto)
         DISSECTOR_ASSERT_NOT_REACHED();
         break;
       }
-      cksum_vec[3].ptr = tvb_get_ptr(tvb, offset, udph->uh_sum_cov);
-      cksum_vec[3].len = udph->uh_sum_cov;
+      SET_CKSUM_VEC_TVB(cksum_vec[3], tvb, offset, udph->uh_sum_cov);
       computed_cksum = in_cksum(&cksum_vec[0], 4);
       if (computed_cksum == 0) {
         item = proto_tree_add_uint_format_value(udp_tree, hfi_udp_checksum.id, tvb,
@@ -940,7 +964,7 @@ proto_register_udp(void)
                                  &udplite_check_checksum);
 
   register_decode_as(&udp_da);
-  register_conversation_table(proto_udp, FALSE, udpip_conversation_packet);
+  register_conversation_table(proto_udp, FALSE, udpip_conversation_packet, udpip_hostlist_packet, udpip_hostlist_prefix);
 
   register_init_routine(udp_init);
 

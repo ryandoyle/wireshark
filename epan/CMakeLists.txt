@@ -907,6 +907,7 @@ set(DISSECTOR_SRC
 	dissectors/packet-lmi.c
 	dissectors/packet-lmp.c
 	dissectors/packet-logcat.c
+	dissectors/packet-logcat-text.c
 	dissectors/packet-lon.c
 	dissectors/packet-loop.c
 	dissectors/packet-lpd.c
@@ -1530,8 +1531,10 @@ set(LIBWIRESHARK_FILES
 	column-utils.c
 	conversation.c
 	conversation_table.c
+	crc10-tvb.c
 	crc16-tvb.c
 	crc32-tvb.c
+	crc6-tvb.c
 	crc8-tvb.c
 	decode_as.c
 	disabled_protos.c

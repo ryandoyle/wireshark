@@ -146,7 +146,6 @@ EXTRA_DIST = \
 	lex.py						\
 	list_protos_in_cap.sh				\
 	Makefile.nmake					\
-	make-dissector-reg				\
 	make-dissector-reg.py				\
 	make-manuf					\
 	make-sminmpec.pl				\
@@ -174,7 +173,7 @@ EXTRA_DIST = \
 	setuid-root.pl.in				\
 	test-common.sh					\
 	test-captures.sh				\
-	textify.sh					\
+	textify.ps1					\
 	tpg/Makefile.am					\
 	tpg/Makefile.nmake				\
 	tpg/V2P.pm					\

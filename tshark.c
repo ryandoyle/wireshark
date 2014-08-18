@@ -52,7 +52,7 @@
 #endif
 
 #ifdef HAVE_LIBZ
-#include <zlib.h>	/* to get the libz version number */
+#include <zlib.h>      /* to get the libz version number */
 #endif
 
 #ifdef HAVE_LIBCAP
@@ -394,11 +394,11 @@ print_usage(FILE *output)
   fprintf(output, "                           default report=\"fields\"\n");
   fprintf(output, "                           use \"-G ?\" for more help\n");
 #ifdef __linux__
-    fprintf(output, "\n");
-    fprintf(output, "WARNING: dumpcap will enable kernel BPF JIT compiler if available.\n");
-    fprintf(output, "You might want to reset it\n");
-    fprintf(output, "By doing \"echo 0 > /proc/sys/net/core/bpf_jit_enable\"\n");
-    fprintf(output, "\n");
+  fprintf(output, "\n");
+  fprintf(output, "WARNING: dumpcap will enable kernel BPF JIT compiler if available.\n");
+  fprintf(output, "You might want to reset it\n");
+  fprintf(output, "By doing \"echo 0 > /proc/sys/net/core/bpf_jit_enable\"\n");
+  fprintf(output, "\n");
 #endif
 
 }
@@ -915,20 +915,20 @@ show_version(GString *comp_info_str, GString *runtime_info_str)
 static void
 get_tshark_compiled_version_info(GString *str)
 {
-	/* Capture libraries */
-	get_compiled_caplibs_version(str);
+  /* Capture libraries */
+  get_compiled_caplibs_version(str);
 
-	/* LIBZ */
-	g_string_append(str, ", ");
+  /* LIBZ */
+  g_string_append(str, ", ");
 #ifdef HAVE_LIBZ
-	g_string_append(str, "with libz ");
+  g_string_append(str, "with libz ");
 #ifdef ZLIB_VERSION
-	g_string_append(str, ZLIB_VERSION);
+  g_string_append(str, ZLIB_VERSION);
 #else /* ZLIB_VERSION */
-	g_string_append(str, "(version unknown)");
+  g_string_append(str, "(version unknown)");
 #endif /* ZLIB_VERSION */
 #else /* HAVE_LIBZ */
-	g_string_append(str, "without libz");
+  g_string_append(str, "without libz");
 #endif /* HAVE_LIBZ */
 }
 
@@ -1201,6 +1201,7 @@ main(int argc, char *argv[])
 #endif
   register_all_tap_listeners();
   conversation_table_set_gui_info(init_iousers);
+  hostlist_table_set_gui_info(NULL);  /* XXX - TODO: Provide "GUI" function for TShark */
 
   /* If invoked with the "-G" flag, we dump out information based on
      the argument to the "-G" flag; if no argument is specified,

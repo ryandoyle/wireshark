@@ -1,6 +1,5 @@
-/* crcdrm.c
- * another CRC 16
- * Copyright 2006, British Broadcasting Corporation
+/* crc6-tvb.h
+ * Declaration of CRC-6 tvbuff routines
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -21,29 +20,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <stdlib.h>
+#ifndef __CRC6_TVB_H__
+#define __CRC6_TVB_H__
 
-#include <wsutil/crcdrm.h>
+#include "ws_symbol_export.h"
 
-unsigned long crc_drm(const char *data, size_t bytesize,
-	unsigned short num_crc_bits, unsigned long crc_gen, int invert)
-{
-	unsigned long crc_holder, ones, i, msb, databit;
-	signed short j;
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
 
-	ones = (1 << num_crc_bits) - 1;
-	crc_holder = ones;
-	for (i=0; i<bytesize; i++)
-		for (j=7; j>=0; j--)
-		{
-			crc_holder <<= 1;
-			msb = crc_holder >> num_crc_bits;
-			databit = (data[i] >> j) & 1;
-			if ((msb ^ databit) != 0)
-				crc_holder = crc_holder ^ crc_gen;
-			crc_holder = crc_holder & ones;
-		}
-	if (invert)
-		crc_holder = crc_holder ^ ones; /* invert checksum */
-	return crc_holder;
+WS_DLL_PUBLIC guint16 crc6_compute_tvb(tvbuff_t *tvb, int len);
+
+#ifdef __cplusplus
 }
+#endif /* __cplusplus */
+
+#endif /* crc6-tvb.h */

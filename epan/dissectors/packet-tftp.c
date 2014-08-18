@@ -198,7 +198,7 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
                                  tvbuff_t *tvb, packet_info *pinfo,
                                  proto_tree *tree)
 {
-  proto_tree *tftp_tree = NULL;
+  proto_tree *tftp_tree;
   proto_item *ti;
   gint        offset    = 0;
   guint16     opcode;
@@ -210,31 +210,30 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
 
   col_set_str(pinfo->cinfo, COL_PROTOCOL, "TFTP");
 
-  opcode = tvb_get_ntohs(tvb, offset);
+  ti = proto_tree_add_item(tree, proto_tftp, tvb, offset, -1, ENC_NA);
+  tftp_tree = proto_item_add_subtree(ti, ett_tftp);
 
+  opcode = tvb_get_ntohs(tvb, offset);
+  proto_tree_add_uint(tftp_tree, hf_tftp_opcode, tvb, offset, 2, opcode);
   col_add_str(pinfo->cinfo, COL_INFO,
               val_to_str(opcode, tftp_opcode_vals, "Unknown (0x%04x)"));
+  offset += 2;
 
-  if (tree) {
-    ti = proto_tree_add_item(tree, proto_tftp, tvb, offset, -1, ENC_NA);
-    tftp_tree = proto_item_add_subtree(ti, ett_tftp);
-
+  /* read and write requests contain file names
+     for other messages, we add the filenames from the conversation */
+  if (opcode!=TFTP_RRQ && opcode!=TFTP_WRQ) {
     if (tftp_info->source_file) {
       ti = proto_tree_add_string(tftp_tree, hf_tftp_source_file, tvb,
-                                 0, 0, tftp_info->source_file);
+          0, 0, tftp_info->source_file);
       PROTO_ITEM_SET_GENERATED(ti);
     }
 
     if (tftp_info->destination_file) {
       ti = proto_tree_add_string(tftp_tree, hf_tftp_destination_file, tvb,
-                                 0, 0, tftp_info->destination_file);
+          0, 0, tftp_info->destination_file);
       PROTO_ITEM_SET_GENERATED(ti);
     }
-
-    proto_tree_add_uint(tftp_tree, hf_tftp_opcode, tvb,
-                        offset, 2, opcode);
   }
-  offset += 2;
 
   switch (opcode) {
 
@@ -244,6 +243,10 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
                         tvb, offset, i1, ENC_ASCII|ENC_NA);
 
     tftp_info->source_file = tvb_get_string_enc(wmem_file_scope(), tvb, offset, i1, ENC_ASCII);
+    /* we either have a source file name (for read requests) or a
+       destination file name (for write requests) 
+       when we set one of the names, we clear the other */
+    tftp_info->destination_file = NULL;
 
     col_append_fstr(pinfo->cinfo, COL_INFO, ", File: %s",
                     tvb_format_stringzpad(tvb, offset, i1));
@@ -270,6 +273,7 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
 
     tftp_info->destination_file =
       tvb_get_string_enc(wmem_file_scope(), tvb, offset, i1, ENC_ASCII);
+    tftp_info->source_file = NULL; /* see above */
 
     col_append_fstr(pinfo->cinfo, COL_INFO, ", File: %s",
                     tvb_format_stringzpad(tvb, offset, i1));
@@ -434,8 +438,6 @@ static void dissect_tftp_message(tftp_conv_info_t *tftp_info,
     break;
 
   }
-
-  return;
 }
 
 static gboolean
@@ -495,8 +497,9 @@ dissect_tftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    * came; all subsequent packets go between those two IP addresses
    * and ports.
    *
-   * If this packet went to the TFTP port, we check to see if
-   * there's already a conversation with one address/port pair
+   * If this packet went to the TFTP port (either to one of the ports
+   * set in the preferences or to a port set via Decode As), we check
+   * to see if there's already a conversation with one address/port pair
    * matching the source IP address and port of this packet,
    * the other address matching the destination IP address of this
    * packet, and any destination port.
@@ -506,7 +509,8 @@ dissect_tftp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
    * the destination address of this packet, and its port 2 being
    * wildcarded, and give it the TFTP dissector as a dissector.
    */
-  if (value_is_in_range(global_tftp_port_range, pinfo->destport)) {
+  if (value_is_in_range(global_tftp_port_range, pinfo->destport) ||
+      (pinfo->match_uint == pinfo->destport)) {
     conversation = find_conversation(pinfo->fd->num, &pinfo->src, &pinfo->dst, PT_UDP,
                                      pinfo->srcport, 0, NO_PORT_B);
     if( (conversation == NULL) || (conversation->dissector_handle != tftp_handle) ){
@@ -643,7 +647,7 @@ proto_reg_handoff_tftp(void)
     heur_dissector_add("stun", dissect_embeddedtftp_heur, proto_tftp);
     tftp_initialized = TRUE;
   } else {
-    dissector_add_uint_range("udp.port", tftp_port_range, tftp_handle);
+    dissector_delete_uint_range("udp.port", tftp_port_range, tftp_handle);
     g_free(tftp_port_range);
   }
 

@@ -27,9 +27,11 @@ isEqual(QT_MAJOR_VERSION, 4) {
     QT += core gui
 } else {
     QT += core widgets printsupport
-    win: QT += gui-private
 }
 
+isEqual(QT_MAJOR_VERSION, 5): greaterThan(QT_MINOR_VERSION, 1): win32 {
+    QT += winextras
+}
 
 macx {
     TARGET = Wireshark
@@ -156,7 +158,7 @@ win32 {
 }
 
 SOURCES_TAP = \
-    stats_tree_dialog.cpp
+    "$$PWD/stats_tree_dialog.cpp"
 
 tap_register.name = Generate wireshark-tap-register.c
 tap_register.input = SOURCES_TAP
@@ -236,6 +238,8 @@ FORMS += \
     preferences_dialog.ui \
     print_dialog.ui \
     profile_dialog.ui \
+    remote_capture_dialog.ui  \
+    remote_settings_dialog.ui  \
     sctp_all_assocs_dialog.ui   \
     sctp_assoc_analyse_dialog.ui \
     sctp_chunk_statistics_dialog.ui  \
@@ -284,6 +288,8 @@ HEADERS += $$HEADERS_WS_C \
     preferences_dialog.h \
     print_dialog.h \
     profile_dialog.h \
+    remote_capture_dialog.h  \
+    remote_settings_dialog.h    \
     sctp_all_assocs_dialog.h  \
     sctp_assoc_analyse_dialog.h \
     sctp_chunk_statistics_dialog.h  \
@@ -392,6 +398,8 @@ macx {
 }
 
 win32 {
+    DEFINES+=HAVE_PCAP_REMOTE
+    DEFINES+=HAVE_PCAP_SETSAMPLING
     # Add the wireshark objects to LIBS
     LIBS += $$OBJECTS_WS_C
     LIBS += $$PA_OBJECTS
@@ -635,6 +643,8 @@ SOURCES += \
     qt_ui_utils.cpp \
     recent_file_status.cpp \
     related_packet_delegate.cpp \
+    remote_capture_dialog.cpp  \
+    remote_settings_dialog.cpp \
     sctp_all_assocs_dialog.cpp  \
     sctp_assoc_analyse_dialog.cpp \
     sctp_chunk_statistics_dialog.cpp  \

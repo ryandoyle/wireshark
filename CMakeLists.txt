@@ -31,10 +31,6 @@ cmake_policy(SET CMP0008 NEW)
 cmake_policy(SET CMP0011 OLD)
 # Policy since 2.8.1
 cmake_policy(SET CMP0015 NEW)
-# Policy since 2.8.11
-if (POLICY CMP0020)
-	cmake_policy(SET CMP0020 OLD)
-endif()
 
 #Where to find local cmake scripts
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
@@ -526,6 +522,9 @@ if(BUILD_qtshark)
 		if (APPLE)
 			set(PACKAGELIST ${PACKAGELIST} Qt5MacExtras)
 		endif()
+		if( WIN32 )
+			set(PACKAGELIST ${PACKAGELIST} Qt5WinExtras)
+		endif()
 		set(QT_VERSION 5)
 	else()
 		set(PACKAGELIST ${PACKAGELIST} Qt4)
@@ -713,6 +712,10 @@ if (Qt5Widgets_FOUND)
 		set (QT_LIBRARIES ${QT_LIBRARIES} ${Qt5MacExtras_LIBRARIES})
 		# That's the name autofoo uses
 		set(QT_MACEXTRAS_LIB 1)
+	endif()
+	if(Qt5WinExtras_FOUND)
+		set (QT_LIBRARIES ${QT_LIBRARIES} ${Qt5WinExtras_LIBRARIES})
+		# set(QT_WINEXTRAS_LIB 1) # Not needed?
 	endif()
 # If Qt4: QT_LIBRARIES and QT_INCLUDES are not set above. They require extra magic
 elseif(QT_FOUND)
@@ -1104,6 +1107,11 @@ if(BUILD_qtshark AND QT_FOUND)
 		${NL_LIBRARIES}
 	)
 	# qtshark and wireshark share wireshark_FILES
+
+	# Policy since 2.8.11
+	if (POLICY CMP0020)
+		cmake_policy(SET CMP0020 OLD)
+	endif()
 
 	add_executable(qtshark ${wireshark_FILES})
 	set_target_properties(qtshark PROPERTIES LINK_FLAGS "${WS_LINK_FLAGS}")

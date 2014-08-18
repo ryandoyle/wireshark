@@ -1892,6 +1892,29 @@ rsvp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_,
     return 1;
 }
 
+static const char* rsvp_host_get_filter_type(hostlist_talker_t* host _U_, conv_filter_type_e filter)
+{
+    return rsvp_conv_get_filter_type(NULL, filter);
+}
+
+static hostlist_dissector_info_t rsvp_host_dissector_info = {&rsvp_host_get_filter_type};
+
+static int
+rsvp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
+{
+    conv_hash_t *hash = (conv_hash_t*) pit;
+    const rsvp_conversation_info *rsvph = (const rsvp_conversation_info *)vip;
+
+    /* Take two "add" passes per packet, adding for each direction, ensures
+     * that all packets are counted properly (even if address is sending to
+     * itself). XXX - this could probably be done more efficiently inside
+     * hostlist_table
+     */
+    add_hostlist_table_data(hash, &rsvph->source, 0, TRUE, 1, pinfo->fd->pkt_len, &rsvp_host_dissector_info, PT_NONE);
+    add_hostlist_table_data(hash, &rsvph->destination, 0, FALSE, 1, pinfo->fd->pkt_len, &rsvp_host_dissector_info, PT_NONE);
+    return 1;
+}
+
 static inline int
 rsvp_class_to_filter_num(int classnum)
 {
@@ -7204,8 +7227,7 @@ dissect_rsvp_msg_tree(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     if (!pinfo->fragmented && ((int) tvb_length(tvb) >= msg_length)) {
         /* The packet isn't part of a fragmented datagram and isn't
            truncated, so we can checksum it. */
-        cksum_vec[0].ptr = tvb_get_ptr(tvb, 0, msg_length);
-        cksum_vec[0].len = msg_length;
+        SET_CKSUM_VEC_TVB(cksum_vec[0], tvb, 0, msg_length);
         computed_cksum = in_cksum(&cksum_vec[0], 1);
         if (computed_cksum == 0) {
             proto_item_append_text(cksum_item, " [correct]");
@@ -9178,7 +9200,7 @@ proto_register_rsvp(void)
     /* Initialization routine for RSVP conversations */
     register_init_routine(&rsvp_init_protocol);
 
-    register_conversation_table(proto_rsvp, TRUE, rsvp_conversation_packet);
+    register_conversation_table(proto_rsvp, TRUE, rsvp_conversation_packet, rsvp_hostlist_packet, NULL);
 }
 
 void

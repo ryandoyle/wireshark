@@ -362,6 +362,7 @@ dissect_credssp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree,
   gboolean pc;
   gint32 tag;
   guint32 length;
+  gint8 ver;
 
   asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
 
@@ -376,7 +377,8 @@ dissect_credssp_heur(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree,
         offset = get_ber_identifier(tvb, offset, &ber_class, &pc, &tag);
         if((ber_class == BER_CLASS_UNI) && (tag == BER_UNI_TAG_INTEGER)) {
           offset = get_ber_length(tvb, offset, &length, NULL);
-          if((length == 1) && (tvb_get_guint8(tvb, offset) == 2)) {
+          ver = tvb_get_guint8(tvb, offset);
+          if((length == 1) && ((ver == 2) || (ver == 3))) {
             if (have_tap_listener(exported_pdu_tap)) {
               exp_pdu_data_t *exp_pdu_data;
               guint8 tags_bit_field;
@@ -510,7 +512,7 @@ void proto_register_credssp(void) {
         "OCTET_STRING", HFILL }},
 
 /*--- End of included file: packet-credssp-hfarr.c ---*/
-#line 152 "../../asn1/credssp/packet-credssp-template.c"
+#line 154 "../../asn1/credssp/packet-credssp-template.c"
   };
 
   /* List of subtrees */
@@ -528,7 +530,7 @@ void proto_register_credssp(void) {
     &ett_credssp_TSRequest,
 
 /*--- End of included file: packet-credssp-ettarr.c ---*/
-#line 158 "../../asn1/credssp/packet-credssp-template.c"
+#line 160 "../../asn1/credssp/packet-credssp-template.c"
   };
 
 

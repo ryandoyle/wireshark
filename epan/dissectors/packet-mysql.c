@@ -308,6 +308,8 @@ static const value_string mysql_collation_vals[] = {
 	{42,  "latin7 COLLATE latin7_general_cs"},
 	{43,  "macce COLLATE macce_bin"},
 	{44,  "cp1250 COLLATE cp1250_croatian_ci"},
+	{45,  "utf8mb4 COLLATE utf8mb4_general_ci"},
+	{46,  "utf8mb4 COLLATE utf8mb4_bin"},
 	{47,  "latin1 COLLATE latin1_bin"},
 	{48,  "latin1 COLLATE latin1_general_ci"},
 	{49,  "latin1 COLLATE latin1_general_cs"},
@@ -361,6 +363,36 @@ static const value_string mysql_collation_vals[] = {
 	{208, "utf8 COLLATE utf8_persian_ci"},
 	{209, "utf8 COLLATE utf8_esperanto_ci"},
 	{210, "utf8 COLLATE utf8_hungarian_ci"},
+	{211, "utf8 COLLATE utf8_sinhala_ci"},
+	{212, "utf8 COLLATE utf8_german2_ci"},
+	{213, "utf8 COLLATE utf8_croatian_ci"},
+	{214, "utf8 COLLATE utf8_unicode_520_ci"},
+	{215, "utf8 COLLATE utf8_vietnamese_ci"},
+	{223, "utf8 COLLATE utf8_general_mysql500_ci"},
+	{224, "utf8mb4 COLLATE utf8mb4_unicode_ci"},
+	{225, "utf8mb4 COLLATE utf8mb4_icelandic_ci"},
+	{226, "utf8mb4 COLLATE utf8mb4_latvian_ci"},
+	{227, "utf8mb4 COLLATE utf8mb4_romanian_ci"},
+	{228, "utf8mb4 COLLATE utf8mb4_slovenian_ci"},
+	{229, "utf8mb4 COLLATE utf8mb4_polish_ci"},
+	{230, "utf8mb4 COLLATE utf8mb4_estonian_ci"},
+	{231, "utf8mb4 COLLATE utf8mb4_spanish_ci"},
+	{232, "utf8mb4 COLLATE utf8mb4_swedish_ci"},
+	{233, "utf8mb4 COLLATE utf8mb4_turkish_ci"},
+	{234, "utf8mb4 COLLATE utf8mb4_czech_ci"},
+	{235, "utf8mb4 COLLATE utf8mb4_danish_ci"},
+	{236, "utf8mb4 COLLATE utf8mb4_lithuanian_ci"},
+	{237, "utf8mb4 COLLATE utf8mb4_slovak_ci"},
+	{238, "utf8mb4 COLLATE utf8mb4_spanish2_ci"},
+	{239, "utf8mb4 COLLATE utf8mb4_roman_ci"},
+	{240, "utf8mb4 COLLATE utf8mb4_persian_ci"},
+	{241, "utf8mb4 COLLATE utf8mb4_esperanto_ci"},
+	{242, "utf8mb4 COLLATE utf8mb4_hungarian_ci"},
+	{243, "utf8mb4 COLLATE utf8mb4_sinhala_ci"},
+	{244, "utf8mb4 COLLATE utf8mb4_german2_ci"},
+	{245, "utf8mb4 COLLATE utf8mb4_croatian_ci"},
+	{246, "utf8mb4 COLLATE utf8mb4_unicode_520_ci"},
+	{247, "utf8mb4 COLLATE utf8mb4_vietnamese_ci"},
 	{0, NULL}
 };
 
@@ -580,6 +612,9 @@ static int hf_mysql_exec_field_time_length = -1;
 static int hf_mysql_exec_field_time_sign = -1;
 static int hf_mysql_exec_field_time_days = -1;
 
+
+static dissector_handle_t ssl_handle;
+
 static expert_field ei_mysql_eof = EI_INIT;
 static expert_field ei_mysql_dissector_incomplete = EI_INIT;
 static expert_field ei_mysql_streamed_param = EI_INIT;
@@ -664,6 +699,7 @@ typedef struct mysql_conn_data {
 	guint32 generation;
 #endif
 	guint8 major_version;
+	guint32 frame_start_ssl;
 } mysql_conn_data_t;
 
 struct mysql_frame_data {
@@ -870,6 +906,11 @@ mysql_dissect_login(tvbuff_t *tvb, packet_info *pinfo, int offset,
 
 	offset = mysql_dissect_caps_client(tvb, offset, login_tree, &conn_data->clnt_caps);
 
+	if (!(conn_data->frame_start_ssl) && conn_data->clnt_caps & MYSQL_CAPS_SL) /* Next packet will be use SSL */
+	{
+		col_set_str(pinfo->cinfo, COL_INFO, "Response: SSL Handshake");
+		conn_data->frame_start_ssl = pinfo->fd->num;
+	}
 	if (conn_data->clnt_caps & MYSQL_CAPS_CU) /* 4.1 protocol */
 	{
 		offset = mysql_dissect_ext_caps_client(tvb, offset, login_tree, &conn_data->clnt_caps_ext);
@@ -1232,13 +1273,23 @@ mysql_dissect_request(tvbuff_t *tvb,packet_info *pinfo, int offset,
 		proto_tree_add_item(req_tree, hf_mysql_user, tvb,  offset, lenstr, ENC_ASCII|ENC_NA);
 		offset += lenstr;
 
-		lenstr = tvb_strsize(tvb, offset);
+		if (conn_data->clnt_caps & MYSQL_CAPS_SC) {
+			lenstr = tvb_get_guint8(tvb, offset);
+			offset += 1;
+		} else {
+			lenstr = tvb_strsize(tvb, offset);
+		}
 		proto_tree_add_item(req_tree, hf_mysql_passwd, tvb, offset, lenstr, ENC_NA);
 		offset += lenstr;
 
 		lenstr = my_tvb_strsize(tvb, offset);
 		proto_tree_add_item(req_tree, hf_mysql_schema, tvb, offset, lenstr, ENC_ASCII|ENC_NA);
 		offset += lenstr;
+
+		if (tvb_reported_length_remaining(tvb, offset) > 0) {
+			proto_tree_add_item(req_tree, hf_mysql_charset, tvb, offset, 1, ENC_NA);
+			offset += 2; /* for charset */
+		}
 
 		conn_data->state= RESPONSE_OK;
 		break;
@@ -2046,7 +2097,7 @@ dissect_mysql_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 	conversation_t  *conversation;
 	int             offset = 0;
 	guint           packet_number;
-	gboolean        is_response;
+	gboolean        is_response, is_ssl = FALSE;
 	mysql_conn_data_t  *conn_data;
 #ifdef CTDEBUG
 	mysql_state_t conn_state_in, conn_state_out, frame_state;
@@ -2071,6 +2122,7 @@ dissect_mysql_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 		conn_data->generation= 0;
 #endif
 		conn_data->major_version= 0;
+		conn_data->frame_start_ssl= 0;
 		conversation_add_proto_data(conversation, proto_mysql, conn_data);
 	}
 
@@ -2142,8 +2194,10 @@ dissect_mysql_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 	}
 #endif
 
+	proto_get_frame_protocols(pinfo->layers, NULL, NULL, NULL, NULL, &is_ssl);
+
 	if (is_response) {
-		if (packet_number == 0) {
+		if (packet_number == 0 ) {
 			col_set_str(pinfo->cinfo, COL_INFO, "Server Greeting");
 			offset = mysql_dissect_greeting(tvb, pinfo, offset, mysql_tree, conn_data);
 		} else {
@@ -2151,7 +2205,7 @@ dissect_mysql_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 			offset = mysql_dissect_response(tvb, pinfo, offset, mysql_tree, conn_data);
 		}
 	} else {
-		if (packet_number == 1) {
+		if (packet_number == 1 || (packet_number == 2 && is_ssl)) {
 			col_set_str(pinfo->cinfo, COL_INFO, "Login Request");
 			offset = mysql_dissect_login(tvb, pinfo, offset, mysql_tree, conn_data);
 		} else {
@@ -2182,8 +2236,29 @@ dissect_mysql_pdu(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* dat
 static int
 dissect_mysql(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data)
 {
+	gboolean is_ssl = FALSE;
+	conversation_t  *conversation;
+	mysql_conn_data_t  *conn_data;
+
+	proto_get_frame_protocols(pinfo->layers, NULL, NULL, NULL, NULL, &is_ssl);
+
+	/* Check there is already a conversation */
+	conversation = find_or_create_conversation(pinfo);
+	conn_data = (mysql_conn_data_t *)conversation_get_proto_data(conversation, proto_mysql);
+
+	if(conn_data){
+		/* Check if flag (frame_start_ssl) is > to actual packet number and no already call SSL dissector */
+		if(conn_data->frame_start_ssl && conn_data->frame_start_ssl < pinfo->fd->num && !(is_ssl)) {
+			/* Call SSL dissector */
+			call_dissector(ssl_handle, tvb, pinfo, tree);
+			return tvb_reported_length(tvb);
+		}
+
+	}
+
 	tcp_dissect_pdus(tvb, pinfo, tree, mysql_desegment, 3,
 			 get_mysql_pdu_len, dissect_mysql_pdu, data);
+
 	return tvb_reported_length(tvb);
 }
 
@@ -3057,6 +3132,7 @@ void proto_register_mysql(void)
 void proto_reg_handoff_mysql(void)
 {
 	dissector_handle_t mysql_handle;
+	ssl_handle = find_dissector("ssl");
 	mysql_handle = new_create_dissector_handle(dissect_mysql, proto_mysql);
 	dissector_add_uint("tcp.port", TCP_PORT_MySQL, mysql_handle);
 }

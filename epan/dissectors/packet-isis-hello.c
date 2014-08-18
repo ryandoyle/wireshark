@@ -82,6 +82,8 @@ static int hf_isis_hello_pdu_length = -1;
 static int hf_isis_hello_priority = -1;
 static int hf_isis_hello_priority_reserved = -1;
 static int hf_isis_hello_lan_id = -1;
+static int hf_isis_hello_clv_type = -1;
+static int hf_isis_hello_clv_length = -1;
 static int hf_isis_hello_local_circuit_id = -1;
 static int hf_isis_hello_clv_ipv4_int_addr = -1;
 static int hf_isis_hello_clv_ipv6_int_addr = -1;
@@ -124,6 +126,7 @@ static gint ett_isis_hello_clv_mt_port_cap_spb_mcid = -1;
 static gint ett_isis_hello_clv_mt_port_cap_spb_aux_mcid = -1;
 static gint ett_isis_hello_clv_mt_port_cap_spb_digest = -1;
 static gint ett_isis_hello_clv_mt_port_cap_spb_bvid_tuples = -1;
+static gint ett_isis_hello_clv_trill_neighbor = -1;
 static gint ett_isis_hello_clv_checksum = -1;
 
 static expert_field ei_isis_hello_short_packet = EI_INIT;
@@ -516,6 +519,17 @@ dissect_hello_ip_authentication_clv(tvbuff_t *tvb, packet_info* pinfo _U_,
 }
 
 /*
+ * Name: dissect_hello_trill_neighbor_clv
+ */
+static void
+dissect_hello_trill_neighbor_clv(tvbuff_t *tvb _U_, packet_info* pinfo _U_,
+        proto_tree *tree _U_, int offset _U_, int id_length _U_, int length _U_) {
+
+    /* TODO Implement dissector according to RFC7176 section 2.5 */
+
+}
+
+/*
  * Name: dissect_hello_checksum_clv()
  *
  * Description:
@@ -759,10 +773,22 @@ static const isis_clv_handle_t clv_l1_hello_opts[] = {
         dissect_hello_ip_authentication_clv
     },
     {
+        ISIS_CLV_MT_PORT_CAP,
+        "MT Port Capability",
+        &ett_isis_hello_clv_mt_port_cap,
+        dissect_hello_mt_port_cap_clv
+    },
+    {
         ISIS_CLV_MT_SUPPORTED,
         "Multi Topology",
         &ett_isis_hello_clv_mt,
         dissect_hello_mt_clv
+    },
+    {
+        ISIS_CLV_TRILL_NEIGHBOR,
+        "TRILL Neighbor",
+        &ett_isis_hello_clv_trill_neighbor,
+        dissect_hello_trill_neighbor_clv
     },
     {
         ISIS_CLV_CHECKSUM,
@@ -904,7 +930,7 @@ static const isis_clv_handle_t clv_ptp_hello_opts[] = {
     },
     {
         ISIS_CLV_RESTART,
-        "Restart Option",
+        "Restart Signaling",
         &ett_isis_hello_clv_restart,
         dissect_hello_restart_clv
     },
@@ -998,7 +1024,7 @@ dissect_isis_hello(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offs
      */
     isis_dissect_clvs(tvb, pinfo, hello_tree, offset,
             opts, &ei_isis_hello_short_packet, pdu_length, id_length,
-            ett_isis_hello_clv_unknown);
+            ett_isis_hello_clv_unknown, hf_isis_hello_clv_type, hf_isis_hello_clv_length);
 }
 
 
@@ -1076,6 +1102,14 @@ proto_register_isis_hello(void)
         { &hf_isis_hello_lan_id,
         { "SystemID {Designated IS}", "isis.hello.lan_id",
             FT_SYSTEM_ID, BASE_NONE, NULL, 0x0, NULL, HFILL }},
+
+        { &hf_isis_hello_clv_type,
+        { "Type", "isis.hello.clv.type",
+            FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
+
+        { &hf_isis_hello_clv_length,
+        { "Type", "isis.hello.clv.length",
+            FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
 
         { &hf_isis_hello_local_circuit_id,
         { "Local circuit ID", "isis.hello.local_circuit_id",
@@ -1161,6 +1195,7 @@ proto_register_isis_hello(void)
         &ett_isis_hello_clv_mt_port_cap_spb_aux_mcid,
         &ett_isis_hello_clv_mt_port_cap_spb_digest,
         &ett_isis_hello_clv_mt_port_cap_spb_bvid_tuples,
+        &ett_isis_hello_clv_trill_neighbor,
         &ett_isis_hello_clv_checksum
     };
 
@@ -1189,3 +1224,16 @@ proto_reg_handoff_isis_hello(void)
     dissector_add_uint("isis.type", ISIS_TYPE_L2_HELLO, new_create_dissector_handle(dissect_isis_l2_hello, proto_isis_hello));
     dissector_add_uint("isis.type", ISIS_TYPE_PTP_HELLO, new_create_dissector_handle(dissect_isis_ptp_hello, proto_isis_hello));
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 4
+ * tab-width: 8
+ * indent-tabs-mode: nil
+ * End:
+ *
+ * vi: set shiftwidth=4 tabstop=8 expandtab:
+ * :indentSize=4:tabSize=8:noTabs=true:
+ */

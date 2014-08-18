@@ -37,8 +37,6 @@
 #include <epan/chdlctypes.h>
 #include <epan/ipproto.h>
 #include "packet-osi.h"
-#include "packet-isis.h"
-#include "packet-esis.h"
 #include "packet-tpkt.h"
 
 void proto_reg_handoff_osi(void);
@@ -440,6 +438,7 @@ const value_string nlpid_vals[] = {
   { NLPID_ISO11577,        "ISO 11577" },
   { NLPID_COMPRESSED,      "Data compression protocol" },
   { NLPID_IP,              "IP" },
+  { NLPID_TRILL,           "TRILL" },
   { NLPID_SNDCF,           "SubNetwork Dependent Convergence Function"},
   { NLPID_IP6,             "IPv6" },
   { NLPID_PPP,             "PPP" },

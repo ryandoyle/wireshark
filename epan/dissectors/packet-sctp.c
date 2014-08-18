@@ -825,9 +825,32 @@ sctp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_,
   return 1;
 }
 
-static unsigned int
-sctp_adler32(const unsigned char *buf, unsigned int len)
+static const char* sctp_host_get_filter_type(hostlist_talker_t* host _U_, conv_filter_type_e filter)
 {
+  return sctp_conv_get_filter_type(NULL, filter);
+}
+
+static hostlist_dissector_info_t sctp_host_dissector_info = {&sctp_host_get_filter_type};
+
+static int
+sctp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip)
+{
+  conv_hash_t *hash = (conv_hash_t*) pit;
+  const struct _sctp_info *sctphdr=(const struct _sctp_info *)vip;
+
+  /* Take two "add" passes per packet, adding for each direction, ensures that all
+  packets are counted properly (even if address is sending to itself)
+  XXX - this could probably be done more efficiently inside hostlist_table */
+  add_hostlist_table_data(hash, &sctphdr->ip_src, sctphdr->sport, TRUE, 1, pinfo->fd->pkt_len, &sctp_host_dissector_info, PT_SCTP);
+  add_hostlist_table_data(hash, &sctphdr->ip_dst, sctphdr->dport, FALSE, 1, pinfo->fd->pkt_len, &sctp_host_dissector_info, PT_SCTP);
+
+  return 1;
+}
+
+static unsigned int
+sctp_adler32(tvbuff_t *tvb, unsigned int len)
+{
+  const guint8 *buf = tvb_get_ptr(tvb, 0, len);
   guint32 result = 1;
 
   result = update_adler32(result, buf, SOURCE_PORT_LENGTH + DESTINATION_PORT_LENGTH + VERIFICATION_TAG_LENGTH);
@@ -839,8 +862,9 @@ sctp_adler32(const unsigned char *buf, unsigned int len)
 }
 
 static guint32
-sctp_crc32c(const unsigned char *buf, unsigned int len)
+sctp_crc32c(tvbuff_t *tvb, unsigned int len)
 {
+  const guint8 *buf = tvb_get_ptr(tvb, 0, len);
   guint32 crc32,
           zero = 0;
   guint32 result;
@@ -3103,19 +3127,19 @@ fragment_reassembly(tvbuff_t *tvb, sctp_fragment *fragment,
 static void
 export_sctp_data_chunk(packet_info *pinfo, tvbuff_t *tvb, const gchar *proto_name)
 {
-	exp_pdu_data_t *exp_pdu_data;
-	guint8 tags_bit_field;
+  exp_pdu_data_t *exp_pdu_data;
+  guint8 tags_bit_field;
 
-	tags_bit_field = EXP_PDU_TAG_IP_SRC_BIT + EXP_PDU_TAG_IP_DST_BIT + EXP_PDU_TAG_SRC_PORT_BIT+
-		EXP_PDU_TAG_DST_PORT_BIT + EXP_PDU_TAG_ORIG_FNO_BIT;
+  tags_bit_field = EXP_PDU_TAG_IP_SRC_BIT + EXP_PDU_TAG_IP_DST_BIT + EXP_PDU_TAG_SRC_PORT_BIT+
+    EXP_PDU_TAG_DST_PORT_BIT + EXP_PDU_TAG_ORIG_FNO_BIT;
 
-	exp_pdu_data = load_export_pdu_tags(pinfo, proto_name, -1, &tags_bit_field, 1);
+  exp_pdu_data = load_export_pdu_tags(pinfo, proto_name, -1, &tags_bit_field, 1);
 
-	exp_pdu_data->tvb_captured_length = tvb_captured_length(tvb);
-	exp_pdu_data->tvb_reported_length = tvb_reported_length(tvb);
-	exp_pdu_data->pdu_tvb = tvb;
+  exp_pdu_data->tvb_captured_length = tvb_captured_length(tvb);
+  exp_pdu_data->tvb_reported_length = tvb_reported_length(tvb);
+  exp_pdu_data->pdu_tvb = tvb;
 
-	tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
+  tap_queue_packet(exported_pdu_tap, pinfo, exp_pdu_data);
 
 }
 
@@ -3147,7 +3171,7 @@ dissect_fragmented_payload(tvbuff_t *payload_tvb, packet_info *pinfo, proto_tree
     const gchar *proto_name;
     gboolean retval;
 
-	cur = wmem_list_tail(pinfo->layers);
+    cur = wmem_list_tail(pinfo->layers);
     retval = dissect_payload(new_tvb, pinfo, tree, ppi);
     cur = wmem_list_frame_next(cur);
     proto_id = GPOINTER_TO_UINT(wmem_list_frame_data(cur));
@@ -3303,7 +3327,7 @@ dissect_data_chunk(tvbuff_t *chunk_tvb,
       guint proto_id;
       const gchar *proto_name;
 
-	  cur = wmem_list_tail(pinfo->layers);
+      cur = wmem_list_tail(pinfo->layers);
       retval = dissect_payload(payload_tvb, pinfo, tree, payload_proto_id);
       cur = wmem_list_frame_next(cur);
       proto_id = GPOINTER_TO_UINT(wmem_list_frame_data(cur));
@@ -4391,21 +4415,21 @@ dissect_sctp_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, gboolea
     case SCTP_CHECKSUM_NONE:
       break;
     case SCTP_CHECKSUM_ADLER32:
-      calculated_adler32           = sctp_adler32(tvb_get_ptr(tvb, 0, length), length);
+      calculated_adler32           = sctp_adler32(tvb, length);
       adler32_correct              = (checksum == calculated_adler32);
       sctp_info.adler32_calculated = TRUE;
       sctp_info.adler32_correct    = adler32_correct;
       break;
     case SCTP_CHECKSUM_CRC32C:
-      calculated_crc32c            = sctp_crc32c(tvb_get_ptr(tvb, 0, length), length);
+      calculated_crc32c            = sctp_crc32c(tvb, length);
       crc32c_correct               = (checksum == calculated_crc32c);
       sctp_info.crc32c_calculated  = TRUE;
       sctp_info.crc32c_correct     = crc32c_correct;
       break;
     case SCTP_CHECKSUM_AUTOMATIC:
-      calculated_adler32           = sctp_adler32(tvb_get_ptr(tvb, 0, length), length);
+      calculated_adler32           = sctp_adler32(tvb, length);
       adler32_correct              = (checksum == calculated_adler32);
-      calculated_crc32c            = sctp_crc32c(tvb_get_ptr(tvb, 0, length), length);
+      calculated_crc32c            = sctp_crc32c(tvb, length);
       crc32c_correct               = (checksum == calculated_crc32c);
       sctp_info.adler32_calculated = TRUE;
       sctp_info.adler32_correct    = adler32_correct;
@@ -4885,7 +4909,7 @@ proto_register_sctp(void)
   register_decode_as(&sctp_da_port);
   register_decode_as(&sctp_da_ppi);
 
-  register_conversation_table(proto_sctp, FALSE, sctp_conversation_packet);
+  register_conversation_table(proto_sctp, FALSE, sctp_conversation_packet, sctp_hostlist_packet, NULL);
 }
 
 void

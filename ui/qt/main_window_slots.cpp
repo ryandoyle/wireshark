@@ -602,7 +602,7 @@ void MainWindow::startCapture() {
 
     /* did the user ever select a capture interface before? */
     if(global_capture_opts.num_selected == 0) {
-        QString msg = QString("No interface selected");
+        QString msg = QString(tr("No interface selected"));
         main_ui_->statusBar->pushTemporaryStatus(msg);
         return;
     }
@@ -611,7 +611,7 @@ void MainWindow::startCapture() {
     // toolbar buttons and menu items. This may not be the
     // case, e.g. with QtMacExtras.
     if(!capture_filter_valid_) {
-        QString msg = QString("Invalid capture filter");
+        QString msg = QString(tr("Invalid capture filter"));
         main_ui_->statusBar->pushTemporaryStatus(msg);
         return;
     }
@@ -1049,7 +1049,7 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy",
 //                             TRUE);
 
-//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyasColumn",
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/CreateAColumn",
 //                             hfinfo->type != FT_NONE);
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ColorizewithFilter",
 //                             proto_can_match_selected(cf->finfo_selected, cf->edt));
@@ -1082,7 +1082,7 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
 //        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/EditMenu/Copy/AsFilter",
 //                             proto_can_match_selected(cf->finfo_selected, cf->edt));
 
-//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyasColumn",
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/CreateAColumn",
 //                             hfinfo->type != FT_NONE);
         main_ui_->actionAnalyzeAAFSelected->setEnabled(can_match_selected);
         main_ui_->actionAnalyzeAAFNotSelected->setEnabled(can_match_selected);
@@ -1112,7 +1112,7 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
 //        set_menu_sensitivity(ui_manager_tree_view_menu,
 //                             "/TreeViewPopup/GotoCorrespondingPacket", FALSE);
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/Copy", FALSE);
-//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyasColumn", FALSE);
+//        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/CreateAColumn", FALSE);
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ApplyAsFilter", FALSE);
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/PrepareaFilter", FALSE);
 //        set_menu_sensitivity(ui_manager_tree_view_menu, "/TreeViewPopup/ColorizewithFilter", FALSE);
@@ -1131,7 +1131,7 @@ void MainWindow::setMenusForSelectedTreeRow(field_info *fi) {
         main_ui_->actionEditCopyFieldName->setEnabled(false);
         main_ui_->actionEditCopyValue->setEnabled(false);
         main_ui_->actionEditCopyAsFilter->setEnabled(false);
-//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/ApplyasColumn", FALSE);
+//        set_menu_sensitivity(ui_manager_main_menubar, "/Menubar/AnalyzeMenu/CreateAColumn", FALSE);
 
         main_ui_->actionAnalyzeAAFSelected->setEnabled(false);
         main_ui_->actionAnalyzeAAFNotSelected->setEnabled(false);
@@ -2375,7 +2375,7 @@ void MainWindow::on_actionCaptureOptions_triggered()
 {
     connect(&capture_interfaces_dialog_, SIGNAL(setFilterValid(bool)), this, SLOT(startInterfaceCapture(bool)));
     capture_interfaces_dialog_.SetTab(0);
-    capture_interfaces_dialog_.UpdateInterfaces();
+    capture_interfaces_dialog_.updateInterfaces();
 
     if (capture_interfaces_dialog_.isMinimized() == true)
     {

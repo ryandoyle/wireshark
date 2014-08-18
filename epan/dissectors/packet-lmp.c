@@ -740,9 +740,8 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 							offset+6, 2, ENC_BIG_ENDIAN);
 		if (!pinfo->fragmented && (int) tvb_length(tvb) >= msg_length) {
 			/* The packet isn't part of a fragmented datagram and isn't truncated, so we can checksum it. */
-			cksum_vec[0].ptr = tvb_get_ptr(tvb, 0, msg_length);
-			cksum_vec[0].len = msg_length;
-			computed_cksum = in_cksum(&cksum_vec[0], 1);
+			SET_CKSUM_VEC_TVB(cksum_vec[0], tvb, 0, msg_length);
+			computed_cksum = in_cksum(cksum_vec, 1);
 
 			if (computed_cksum == 0) {
 				proto_item_append_text( ti, " [correct]");
@@ -762,6 +761,7 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	  guint8 lmp_class;
 	  guint8 type;
 	  guint8 negotiable;
+	  int filter_num;
 	  const char *object_type;
 
 	  obj_length = tvb_get_ntohs(tvb, offset+2);
@@ -772,10 +772,10 @@ dissect_lmp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
 	  hidden_item = proto_tree_add_uint(lmp_tree, hf_lmp_filter[LMPF_OBJECT], tvb,
 				     offset, 1, lmp_class);
 	  PROTO_ITEM_SET_GENERATED(hidden_item);
-	  if (lmp_valid_class(lmp_class)) {
-
+	  filter_num = lmp_class_to_filter_num(lmp_class);
+	  if (filter_num != -1 && lmp_valid_class(lmp_class)) {
 	      ti = proto_tree_add_item(lmp_tree,
-				       hf_lmp_filter[lmp_class_to_filter_num(lmp_class)],
+				       hf_lmp_filter[filter_num],
 				       tvb, offset, obj_length, ENC_NA);  /* all possibilities are FT_NONE */
 	  } else {
 	      expert_add_info_format(pinfo, hidden_item, &ei_lmp_invalid_class,

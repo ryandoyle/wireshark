@@ -1,12 +1,9 @@
-/* packet-ddtp.h
- * Routines for DDTP (Dynamic DNS Tools Protocol) packet disassembly
- * see http://ddt.sourceforge.net/
- * Olivier Abad <oabad@noos.fr>
+/* crc10-tvb.c
+ * CRC-10 tvb routines
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
- * Copyright 2000
- *
+ * Copyright 1998 Gerald Combs
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -21,34 +18,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- *
  */
 
-#ifndef __PACKET_DDTP_H__
-#define __PACKET_DDTP_H__
+#include "config.h"
 
-#define DDTP_VERSION_ERROR	0
-#define DDTP_VERSION_4		1
-#define DDTP_VERSION_5		2
+#include <glib.h>
+#include <epan/tvbuff.h>
+#include <wsutil/crc10.h>
+#include <epan/crc10-tvb.h>
 
-#define DDTP_ENCRYPT_ERROR	0
-#define DDTP_ENCRYPT_PLAINTEXT	1
-#define DDTP_ENCRYPT_BLOWFISH	2
+/* update the data block's CRC-10 remainder one byte at a time */
+guint16
+update_crc10_by_bytes_tvb(guint16 crc10, tvbuff_t *tvb, int offset, int len)
+{
+    const guint8 *buf;
 
-#define DDTP_MESSAGE_ERROR	0
-#define DDTP_UPDATE_QUERY	1
-#define DDTP_UPDATE_REPLY	2
-#define DDTP_ALIVE_QUERY	3
-#define DDTP_ALIVE_REPLY	4
+    tvb_ensure_bytes_exist(tvb, offset, len);  /* len == -1 not allowed */
+    buf = tvb_get_ptr(tvb, offset, len);
 
-#define DDTP_MARK_ONLINE	0
-#define DDTP_MARK_OFFLINE	1
-
-#define DDTP_UPDATE_SUCCEEDED	0
-#define DDTP_UPDATE_FAILED	1
-#define DDTP_INVALID_PASSWORD	2
-#define DDTP_INVALID_ACCOUNT	3
-#define DDTP_INVALID_OPCODE	4
-
-#endif
+    return update_crc10_by_bytes(crc10, buf, len);
+}

@@ -752,7 +752,9 @@ ssh_dissect_key_exchange(tvbuff_t *tvb, packet_info *pinfo,
 	}
 
 	len = plen+4-padding_length-(offset-last_offset);
-	proto_tree_add_item(key_ex_tree, hf_ssh_payload, tvb, offset, len, ENC_NA);
+	if (len > 0) {
+		proto_tree_add_item(key_ex_tree, hf_ssh_payload, tvb, offset, len, ENC_NA);
+	}
 	offset +=len;
 
 	/* padding */
@@ -1249,7 +1251,7 @@ proto_register_ssh(void)
 		    "SSH DH GEX Minimum", HFILL }},
 
 		{ &hf_ssh_dh_gex_nbits,
-		  { "DH GEX Numbers of Bits",  "ssh.dh_gex.nbits",
+		  { "DH GEX Number of Bits",  "ssh.dh_gex.nbits",
 		    FT_UINT32, BASE_DEC, NULL, 0x0,
 		    "SSH DH GEX Number of Bits", HFILL }},
 

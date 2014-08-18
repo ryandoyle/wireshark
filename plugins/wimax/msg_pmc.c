@@ -41,6 +41,7 @@ extern	gboolean include_cor2_changes;
 
 void proto_register_mac_mgmt_msg_pmc_req(void);
 void proto_register_mac_mgmt_msg_pmc_rsp(void);
+void proto_reg_handoff_mac_mgmt_msg_pmc(void);
 
 static gint proto_mac_mgmt_msg_pmc_req_decoder = -1;
 static gint proto_mac_mgmt_msg_pmc_rsp_decoder = -1;
@@ -245,3 +246,16 @@ proto_reg_handoff_mac_mgmt_msg_pmc(void)
 	pmc_handle = create_dissector_handle(dissect_mac_mgmt_msg_pmc_rsp_decoder, proto_mac_mgmt_msg_pmc_rsp_decoder);
 	dissector_add_uint("wmx.mgmtmsg", MAC_MGMT_MSG_PMC_RSP, pmc_handle);
 }
+
+/*
+ * Editor modelines  -  http://www.wireshark.org/tools/modelines.html
+ *
+ * Local variables:
+ * c-basic-offset: 8
+ * tab-width: 8
+ * indent-tabs-mode: t
+ * End:
+ *
+ * vi: set shiftwidth=8 tabstop=8 noexpandtab:
+ * :indentSize=8:tabSize=8:noTabs=false:
+ */

@@ -321,6 +321,28 @@ ncp_conversation_packet(void *pct, packet_info *pinfo, epan_dissect_t *edt _U_, 
     return 1;
 }
 
+static const char* ncp_host_get_filter_type(hostlist_talker_t* host _U_, conv_filter_type_e filter)
+{
+    return ncp_conv_get_filter_type(NULL, filter);
+}
+
+static hostlist_dissector_info_t ncp_host_dissector_info = {&ncp_host_get_filter_type};
+
+static int
+ncp_hostlist_packet(void *pit, packet_info *pinfo, epan_dissect_t *edt _U_, const void *vip _U_)
+{
+    conv_hash_t *hash = (conv_hash_t*) pit;
+    /*const ncp_common_header *ncphdr=vip;*/
+
+    /* Take two "add" passes per packet, adding for each direction, ensures that all
+    packets are counted properly (even if address is sending to itself)
+    XXX - this could probably be done more efficiently inside hostlist_table */
+    add_hostlist_table_data(hash, &pinfo->src, 0, TRUE, 1, pinfo->fd->pkt_len, &ncp_host_dissector_info, PT_NCP);
+    add_hostlist_table_data(hash, &pinfo->dst, 0, FALSE, 1, pinfo->fd->pkt_len, &ncp_host_dissector_info, PT_NCP);
+
+    return 1;
+}
+
 /*
  * Burst packet system flags.
  */
@@ -353,7 +375,6 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
     guint16               missing_fraglist_count = 0;
     mncp_rhash_value      *request_value = NULL;
     conversation_t        *conversation;
-    proto_item            *expert_item;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NCP");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -715,8 +736,7 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         if (length_remaining > 4) {
             testvar = tvb_get_ntohl(tvb, commhdr+4);
             if (testvar == 0x4c495020) {
-                proto_tree_add_text(ncp_tree, tvb, commhdr, -1,
-                    "Lip Echo Packet");
+                proto_tree_add_item(ncp_tree, hf_lip_echo, tvb, commhdr, -1, ENC_ASCII|ENC_NA);
                 /*break;*/
             }
         }
@@ -840,18 +860,14 @@ dissect_ncp_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
         break;
 
     case NCP_LIP_ECHO:        /* LIP Echo Packet */
-        proto_tree_add_text(ncp_tree, tvb, commhdr, -1,
-            "Lip Echo Packet");
+        proto_tree_add_item(ncp_tree, hf_lip_echo, tvb, commhdr, -1, ENC_ASCII|ENC_NA);
         break;
 
     default:
-        expert_item = proto_tree_add_text(ncp_tree, tvb, commhdr + 6, -1,
+        proto_tree_add_expert_format(ncp_tree, pinfo, &ei_ncp_type, tvb, commhdr + 6, -1,
             "%s packets not supported yet",
             val_to_str(header.type, ncp_type_vals,
                 "Unknown type (0x%04x)"));
-        if (ncp_echo_err) {
-            expert_add_info_format(pinfo, expert_item, &ei_ncp_type, "%s packets not supported yet", val_to_str(header.type, ncp_type_vals, "Unknown type (0x%04x)"));
-        }
         break;
     }
 }
@@ -1127,7 +1143,7 @@ proto_register_ncp(void)
     ncp_tap.hdr=register_tap("ncp");
     register_postseq_cleanup_routine(&mncp_postseq_cleanup);
 
-    register_conversation_table(proto_ncp, FALSE, ncp_conversation_packet);
+    register_conversation_table(proto_ncp, FALSE, ncp_conversation_packet, ncp_hostlist_packet, NULL);
 }
 
 void
