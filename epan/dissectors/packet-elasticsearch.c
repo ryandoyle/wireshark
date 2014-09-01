@@ -46,6 +46,10 @@ static int hf_elasticsearch_internal_header = -1;
 static int hf_elasticsearch_version = -1;
 static int hf_elasticsearch_ping_request_id = -1;
 static int hf_elasticsearch_cluster_name= -1;
+static int hf_elasticsearch_node_name = -1;
+static int hf_elasticsearch_node_id = -1;
+static int hf_elasticsearch_host_name = -1;
+static int hf_elasticsearch_host_address = -1;
 
 static gint ett_elasticsearch = -1;
 
@@ -75,6 +79,34 @@ void proto_register_elasticsearch(void) {
         },
         { &hf_elasticsearch_cluster_name,
           { "Cluster name", "elasticsearch.cluster_name",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_node_name,
+          { "Node name", "elasticsearch.node_name",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_node_id,
+          { "Node ID", "elasticsearch.node_id",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_host_name,
+          { "Hostname", "elasticsearch.host_name",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_host_address,
+          { "Hostname", "elasticsearch.host_address",
             FT_STRING, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL
@@ -148,6 +180,10 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     vint_t version;
     char version_string[9]; /* semantic style versioning 10.99.88 */
     vstring_t cluster_name;
+    vstring_t node_name;
+    vstring_t node_id;
+    vstring_t host_name;
+    vstring_t host_address;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -175,6 +211,27 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     proto_tree_add_string(tree, hf_elasticsearch_cluster_name, tvb, offset, cluster_name.length, cluster_name.value);
     col_append_fstr(pinfo->cinfo, COL_INFO, ", cluster: %s", cluster_name.value);
     offset += cluster_name.length;
+
+    /* Node name */
+    node_name = read_vstring(tvb, offset);
+    proto_tree_add_string(tree, hf_elasticsearch_node_name, tvb, offset, node_name.length, node_name.value);
+    col_append_fstr(pinfo->cinfo, COL_INFO, ", name: %s", node_name.value);
+    offset += node_name.length;
+
+    /* Node ID */
+    node_id = read_vstring(tvb, offset);
+    proto_tree_add_string(tree, hf_elasticsearch_node_id, tvb, offset, node_id.length, node_id.value);
+    offset += node_id.length;
+
+    /* Hostname */
+    host_name = read_vstring(tvb, offset);
+    proto_tree_add_string(tree, hf_elasticsearch_host_name, tvb, offset, host_name.length, host_name.value);
+    offset += host_name.length;
+
+    /* Host address */
+    host_address = read_vstring(tvb, offset);
+    proto_tree_add_string(tree, hf_elasticsearch_host_address, tvb, offset, host_address.length, host_address.value);
+    offset += host_address.length;
 
 	(void)offset;
 	(void)tree;
