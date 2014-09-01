@@ -55,6 +55,8 @@ static int hf_elasticsearch_address_format = -1;
 static int hf_elasticsearch_address_name = -1;
 static int hf_elasticsearch_address_length = -1;
 static int hf_elasticsearch_address_ipv4 = -1;
+static int hf_elasticsearch_address_ipv6 = -1;
+static int hf_elasticsearch_address_ipv6_scope_id = -1;
 
 
 static gint ett_elasticsearch = -1;
@@ -169,6 +171,20 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
+        { &hf_elasticsearch_address_ipv6,
+          { "IP", "elasticsearch.address.ipv6",
+            FT_IPv6, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_ipv6_scope_id,
+          { "IP", "elasticsearch.address.ipv6.scope_id",
+            FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
     };
 
 	static gint *ett[] = {
@@ -269,7 +285,10 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         offset += 4;
       }
       else {
-      
+        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6, tvb, offset, 16, ENC_NA);
+        offset += 16;
+        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6_scope_id, tvb, offset, 4, ENC_BIG_ENDIAN);
+        offset += 4;
       }
     }
     else if (es_address_format == ADDRESS_FORMAT_STRING){
