@@ -24,10 +24,10 @@
 
 #include <epan/packet.h>
 
-#define ELASTICSEARCH_DISCOVERY_PORT 54328;
+#define ELASTICSEARCH_DISCOVERY_PORT 54328
 // ^ wtf the above doesn't work
 #define ELASTICSEARCH_INTERNAL_HEADER 0x01090804
-
+#define IPv4_ADDRESS_LENGTH 4
 
 typedef struct {
     int length;
@@ -50,8 +50,30 @@ static int hf_elasticsearch_node_name = -1;
 static int hf_elasticsearch_node_id = -1;
 static int hf_elasticsearch_host_name = -1;
 static int hf_elasticsearch_host_address = -1;
+static int hf_elasticsearch_address_type = -1;
+static int hf_elasticsearch_address_format = -1;
+static int hf_elasticsearch_address_name = -1;
+static int hf_elasticsearch_address_length = -1;
+static int hf_elasticsearch_address_ipv4 = -1;
+
 
 static gint ett_elasticsearch = -1;
+static gint ett_elasticsearch_address = -1;
+
+
+static const value_string address_types[] = {
+    { 0x0, "Dummy" },
+    { 0x1, "Inet Socket" },
+    { 0x2, "Local" },
+};
+
+static const value_string address_format[] = {
+#define ADDRESS_FORMAT_NUEMRIC 0x0
+    { 0x0, "Numeric" },
+#define ADDRESS_FORMAT_STRING 0x1
+    { 0x1, "String" },
+};
+
 
 void proto_register_elasticsearch(void) {
 
@@ -106,8 +128,43 @@ void proto_register_elasticsearch(void) {
           }
         },
         { &hf_elasticsearch_host_address,
-          { "Hostname", "elasticsearch.host_address",
+          { "Host address", "elasticsearch.host_address",
             FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_type,
+          { "Type", "elasticsearch.address.type",
+            FT_UINT16, BASE_DEC,
+            VALS(address_types), 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_format,
+          { "Format", "elasticsearch.address.format",
+            FT_UINT8, BASE_DEC,
+            VALS(address_format), 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_name,
+          { "Name", "elasticsearch.address.name",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_length,
+          { "Length", "elasticsearch.address.length",
+            FT_UINT8, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_address_ipv4,
+          { "IP", "elasticsearch.address.ipv4",
+            FT_IPv4, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL
           }
@@ -116,6 +173,7 @@ void proto_register_elasticsearch(void) {
 
 	static gint *ett[] = {
 			&ett_elasticsearch,
+			&ett_elasticsearch_address,
 	};
 
 	proto_elasticsearch = proto_register_protocol(
@@ -176,6 +234,67 @@ static vstring_t read_vstring(tvbuff_t *tvb, int offset){
   return vstring;
 }
 
+static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+    proto_tree *address_tree;
+    proto_item *address_item;
+    int start_offset;
+    guint8 es_address_format;
+    guint8 address_length;
+    vstring_t address_name;
+
+    /* Store this away for later */
+    start_offset = offset;
+
+    /* Address tree */
+    address_tree = proto_tree_add_subtree(tree, tvb, offset, -1, ett_elasticsearch_address, &address_item, "Address" );
+
+    /* Address type */
+    proto_tree_add_item(address_tree, hf_elasticsearch_address_type, tvb, offset, 2, ENC_BIG_ENDIAN);
+    offset += 2;
+
+    /* ^  FIXME maybe ? - It is possible that there are different address types but these will never be different on the wire */
+
+    /* Address format */
+    es_address_format = tvb_get_guint8(tvb, offset);
+    proto_tree_add_item(address_tree, hf_elasticsearch_address_format, tvb, offset, 1, ENC_BIG_ENDIAN);
+    offset += 1;
+
+    if (es_address_format == ADDRESS_FORMAT_NUEMRIC){
+      address_length = tvb_get_guint8(tvb, offset);
+      proto_tree_add_item(address_tree, hf_elasticsearch_address_length, tvb, offset, 1, ENC_BIG_ENDIAN);
+      offset += 1;
+      /* Its either IPv4 or IPv6 depending on the length */
+      if(address_length == IPv4_ADDRESS_LENGTH){
+        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv4, tvb, offset, 4, ENC_NA);
+        offset += 4;
+      }
+      else {
+      
+      }
+    }
+    else if (es_address_format == ADDRESS_FORMAT_STRING){
+        address_name = read_vstring(tvb, offset);
+        proto_tree_add_string(address_tree, hf_elasticsearch_address_name, tvb, offset, address_name.length, address_name.value);
+        offset += address_name.length;
+    }
+    else{
+        /* FIXME: shouldn't get here, invalid format type */
+    }
+
+
+    /* Fix up the length of the subtree */
+    proto_item_set_len(address_item, offset - start_offset);
+
+	(void)offset;
+	(void)tree;
+	(void)tvb;
+    (void)pinfo;
+
+    return offset;
+    
+
+}
+
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
     vint_t version;
     char version_string[9]; /* semantic style versioning 10.99.88 */
@@ -232,6 +351,8 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     host_address = read_vstring(tvb, offset);
     proto_tree_add_string(tree, hf_elasticsearch_host_address, tvb, offset, host_address.length, host_address.value);
     offset += host_address.length;
+
+    offset = partial_dissect_address(tvb, pinfo, tree, offset);
 
 	(void)offset;
 	(void)tree;
