@@ -57,6 +57,7 @@ static int hf_elasticsearch_address_length = -1;
 static int hf_elasticsearch_address_ipv4 = -1;
 static int hf_elasticsearch_address_ipv6 = -1;
 static int hf_elasticsearch_address_ipv6_scope_id = -1;
+static int hf_elasticsearch_address_port = -1;
 
 
 static gint ett_elasticsearch = -1;
@@ -185,6 +186,13 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
+        { &hf_elasticsearch_address_port,
+          { "Port", "elasticsearch.address.port",
+            FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
     };
 
 	static gint *ett[] = {
@@ -300,6 +308,8 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
         /* FIXME: shouldn't get here, invalid format type */
     }
 
+    proto_tree_add_item(address_item, hf_elasticsearch_address_port, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
 
     /* Fix up the length of the subtree */
     proto_item_set_len(address_item, offset - start_offset);
