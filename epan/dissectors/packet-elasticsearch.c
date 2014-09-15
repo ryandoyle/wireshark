@@ -27,6 +27,7 @@
 #define ELASTICSEARCH_BINARY_PORT 9300
 
 #define IPv4_ADDRESS_LENGTH 4
+#define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1
 typedef struct {
     int length;
     int value;
@@ -66,12 +67,15 @@ static int hf_elasticsearch_attributes_length = -1;
 static int hf_elasticsearch_address_port = -1;
 static int hf_elasticsearch_header_magic_number = -1;
 static int hf_elasticsearch_header_message_length = -1;
-static int hf_elasticsearch_request_id = -1;
+static int hf_elasticsearch_header_request_id = -1;
+static int hf_elasticsearch_header_status_flags = -1;
+static int hf_elasticsearch_header_status_flags_message_type = -1;
 
 /* Trees */
 static gint ett_elasticsearch = -1;
 static gint ett_elasticsearch_address = -1;
 static gint ett_elasticsearch_discovery_node = -1;
+static gint ett_elasticsearch_status_flags = -1;
 
 
 static const value_string address_types[] = {
@@ -87,6 +91,10 @@ static const value_string address_format[] = {
     { 0x1, "String" },
 };
 
+static const value_string status_flag_message_type[] = {
+        { 0x0, "Request" },
+        { 0x1, "Response" },
+};
 
 void proto_register_elasticsearch(void) {
 
@@ -224,10 +232,24 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
-        { &hf_elasticsearch_request_id,
-          { "Request ID", "elasticsearch.request_id",
+        { &hf_elasticsearch_header_request_id,
+          { "Request ID", "elasticsearch.header.request_id",
             FT_UINT64, BASE_DEC,
             NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_status_flags,
+          { "Status flags", "elasticsearch.header.status_flags",
+            FT_UINT8, BASE_HEX,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_status_flags_message_type,
+          { "Status flags", "elasticsearch.header.status_flags.message_type",
+            FT_BOOLEAN, BASE_NONE,
+            TFS(&tfs_set_notset), 0x0,
             NULL, HFILL
           }
         },
@@ -238,6 +260,7 @@ void proto_register_elasticsearch(void) {
 			&ett_elasticsearch,
 			&ett_elasticsearch_address,
 			&ett_elasticsearch_discovery_node,
+            &ett_elasticsearch_status_flags,
 	};
 
 	proto_elasticsearch = proto_register_protocol(
@@ -462,7 +485,14 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
 static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
 
-    /* Magic number */
+    gint8 transport_status_flags;
+    proto_item *transport_status_flags_item;
+    proto_tree *transport_status_flags_tree;
+
+    /* org.elasticsearch.transport.netty.NettyHeader#writeHeader
+    *
+    * Magic number
+    */
     proto_tree_add_item(tree, hf_elasticsearch_header_magic_number, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
@@ -471,10 +501,27 @@ static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, prot
     offset += 4;
 
     /* Request ID */
-    proto_tree_add_item(tree, hf_elasticsearch_request_id, tvb, offset, 8, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_elasticsearch_header_request_id, tvb, offset, 8, ENC_BIG_ENDIAN);
     offset += 8;
 
+    /* Transport status */
+    transport_status_flags = tvb_get_guint8(tvb, offset);
+    transport_status_flags_item = proto_tree_add_uint(tree, hf_elasticsearch_header_status_flags, tvb, offset, 1, transport_status_flags);
+    transport_status_flags_tree = proto_item_add_subtree(transport_status_flags_item, ett_elasticsearch_status_flags);
+    if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_RESPONSE){
+        col_append_str(pinfo->cinfo, COL_INFO, "Response");
+    } else {
+        col_append_str(pinfo->cinfo, COL_INFO, "Request");
+    }
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_message_type, tvb, offset * 8 + 7, 1, ENC_BIG_ENDIAN);
 
+    offset += 1;
+
+
+    /* Version  */
+
+    (void)transport_status_flags_item;
+    (void)transport_status_flags_tree;
     (void)pinfo;
     (void)offset;
 
