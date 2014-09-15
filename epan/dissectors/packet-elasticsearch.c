@@ -28,6 +28,8 @@
 
 #define IPv4_ADDRESS_LENGTH 4
 #define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1
+#define ELASTICSEARCH_VERSION_LENGTH_STRING 19 // This many characters: XX.XX.XX (XXXXXXXX)
+
 typedef struct {
     int length;
     int value;
@@ -98,6 +100,12 @@ static const value_string status_flag_message_type[] = {
         { 0x1, "Response" },
 };
 
+static void elasticsearch_version_base(gchar *buf, guint32 value) {
+    g_snprintf(buf, ELASTICSEARCH_VERSION_LENGTH_STRING, "%d.%d.%d (%d)", (value / 1000000) % 100,
+            (value / 10000) % 100, (value/ 100) % 100, value);
+}
+
+
 void proto_register_elasticsearch(void) {
 
     static hf_register_info hf[] = {
@@ -110,8 +118,8 @@ void proto_register_elasticsearch(void) {
         },
         { &hf_elasticsearch_version,
           { "Version", "elasticsearch.version",
-            FT_UINT32, BASE_DEC,
-            NULL, 0x0,
+            FT_UINT32, BASE_CUSTOM,
+            elasticsearch_version_base, 0x0,
             NULL, HFILL
           }
         },
@@ -438,8 +446,7 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
     /* Add the variable length encoded version string */
     version = parse_elasticsearch_version(tvb, offset);
-    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, version.length, version.value,
-        "%d (%s)" ,version.value, version.string);
+    proto_tree_add_uint(tree, hf_elasticsearch_version, tvb, offset, version.length, version.value);
     col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version.string);
     offset += version.length;
 
@@ -535,6 +542,8 @@ static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, prot
     offset += 1;
 
     /* Version  */
+    proto_tree_add_item(tree, hf_elasticsearch_version, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
 
     (void)transport_status_flags_item;
     (void)transport_status_flags_tree;
