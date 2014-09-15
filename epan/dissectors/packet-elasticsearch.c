@@ -341,7 +341,7 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
 }
 
-static version_t read_version(tvbuff_t *tvb, int offset){
+static version_t parse_elasticsearch_version(tvbuff_t *tvb, int offset){
     version_t version;
     vint_t raw_version_value;
 
@@ -375,7 +375,7 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 	offset += 4;
 
     /* Add the variable length encoded version string */
-    version = read_version(tvb, offset);
+    version = parse_elasticsearch_version(tvb, offset);
     proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, version.length, version.value,
         "%d (%s)" ,version.value, version.string);
     col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version.string);
@@ -425,7 +425,7 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     offset += attributes_length.length;
 
     /* Version again */
-    node_version = read_version(tvb, offset);
+    node_version = parse_elasticsearch_version(tvb, offset);
     proto_tree_add_uint_format_value(discovery_node_tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value,
             "%d (%s)" ,node_version.value, node_version.string);
     offset += node_version.length;
