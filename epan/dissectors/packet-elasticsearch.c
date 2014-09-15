@@ -70,6 +70,8 @@ static int hf_elasticsearch_header_message_length = -1;
 static int hf_elasticsearch_header_request_id = -1;
 static int hf_elasticsearch_header_status_flags = -1;
 static int hf_elasticsearch_header_status_flags_message_type = -1;
+static int hf_elasticsearch_header_status_flags_error = -1;
+static int hf_elasticsearch_header_status_flags_compression = -1;
 
 /* Trees */
 static gint ett_elasticsearch = -1;
@@ -250,6 +252,20 @@ void proto_register_elasticsearch(void) {
           { "Message type", "elasticsearch.header.status_flags.message_type",
             FT_UINT8, BASE_DEC,
             VALS(status_flag_message_type), 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_status_flags_error,
+          { "Error", "elasticsearch.header.status_flags.error",
+            FT_BOOLEAN, BASE_NONE,
+            TFS(&tfs_set_notset), 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_status_flags_compression,
+          { "Compression", "elasticsearch.header.status_flags.compression",
+            FT_BOOLEAN, BASE_NONE,
+            TFS(&tfs_set_notset), 0x0,
             NULL, HFILL
           }
         },
@@ -504,7 +520,7 @@ static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, prot
     proto_tree_add_item(tree, hf_elasticsearch_header_request_id, tvb, offset, 8, ENC_BIG_ENDIAN);
     offset += 8;
 
-    /* Transport status */
+    /* Transport status: org.elasticsearch.transport.support.TransportStatus */
     transport_status_flags = tvb_get_guint8(tvb, offset);
     transport_status_flags_item = proto_tree_add_uint(tree, hf_elasticsearch_header_status_flags, tvb, offset, 1, transport_status_flags);
     transport_status_flags_tree = proto_item_add_subtree(transport_status_flags_item, ett_elasticsearch_status_flags);
@@ -513,10 +529,10 @@ static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, prot
     } else {
         col_append_str(pinfo->cinfo, COL_INFO, "Request");
     }
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_compression, tvb, offset * 8 + 5, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_error, tvb, offset * 8 + 6, 1, ENC_BIG_ENDIAN);
     proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_message_type, tvb, offset * 8 + 7, 1, ENC_BIG_ENDIAN);
-
     offset += 1;
-
 
     /* Version  */
 
