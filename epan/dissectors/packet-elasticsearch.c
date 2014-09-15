@@ -247,9 +247,9 @@ void proto_register_elasticsearch(void) {
           }
         },
         { &hf_elasticsearch_header_status_flags_message_type,
-          { "Status flags", "elasticsearch.header.status_flags.message_type",
-            FT_BOOLEAN, BASE_NONE,
-            TFS(&tfs_set_notset), 0x0,
+          { "Message type", "elasticsearch.header.status_flags.message_type",
+            FT_UINT8, BASE_DEC,
+            VALS(status_flag_message_type), 0x0,
             NULL, HFILL
           }
         },
