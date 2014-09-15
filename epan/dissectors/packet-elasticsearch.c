@@ -21,7 +21,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 #include "config.h"
-version
 #include <epan/packet.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
