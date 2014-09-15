@@ -24,10 +24,9 @@
 #include <epan/packet.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
-// ^ wtf the above doesn't work
-#define ELASTICSEARCH_INTERNAL_HEADER 0x01090804
-#define IPv4_ADDRESS_LENGTH 4
+#define ELASTICSEARCH_BINARY_PORT 9300
 
+#define IPv4_ADDRESS_LENGTH 4
 typedef struct {
     int length;
     int value;
@@ -65,6 +64,9 @@ static int hf_elasticsearch_address_ipv6 = -1;
 static int hf_elasticsearch_address_ipv6_scope_id = -1;
 static int hf_elasticsearch_attributes_length = -1;
 static int hf_elasticsearch_address_port = -1;
+static int hf_elasticsearch_header_magic_number = -1;
+static int hf_elasticsearch_header_message_length = -1;
+static int hf_elasticsearch_request_id = -1;
 
 /* Trees */
 static gint ett_elasticsearch = -1;
@@ -204,6 +206,27 @@ void proto_register_elasticsearch(void) {
         { &hf_elasticsearch_attributes_length,
           { "Attributes length", "elasticsearch.attributes.length",
             FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_magic_number,
+          { "Magic number", "elasticsearch.header.magic_number",
+            FT_STRING, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_header_message_length,
+          { "Message length", "elasticsearch.header.message_length",
+            FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_request_id,
+          { "Request ID", "elasticsearch.request_id",
+            FT_UINT64, BASE_DEC,
             NULL, 0x0,
             NULL, HFILL
           }
@@ -437,14 +460,31 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
 }
 
+static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+
+    /* Magic number */
+    proto_tree_add_item(tree, hf_elasticsearch_header_magic_number, tvb, offset, 2, ENC_BIG_ENDIAN);
+    offset += 2;
+
+    /* Message length */
+    proto_tree_add_item(tree, hf_elasticsearch_header_message_length, tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+
+    /* Request ID */
+    proto_tree_add_item(tree, hf_elasticsearch_request_id, tvb, offset, 8, ENC_BIG_ENDIAN);
+    offset += 8;
+
+
+    (void)pinfo;
+    (void)offset;
+
+}
+
 static void dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree){
 
 	int offset = 0;
 	proto_item *root_elasticsearch_item;
 	proto_tree *elasticsearch_tree;
-
-	guint32 internal_header;
-
 
 	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
 	col_clear(pinfo->cinfo, COL_INFO);
@@ -453,16 +493,14 @@ static void dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 	elasticsearch_tree = proto_item_add_subtree(root_elasticsearch_item,ett_elasticsearch);
 
 
-	internal_header = tvb_get_ntohl(tvb,offset);
-	if(internal_header == ELASTICSEARCH_INTERNAL_HEADER){
+    /* Multicast zen packet */
+	if(pinfo->ptype == PT_UDP){
 		dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
 	}
-
-
-
-	(void)tvb;
-	(void)pinfo;
-	(void)tree;
+    /* Are we using TCP? And therefore the binary protocol? */
+    if(pinfo->ptype == PT_TCP){
+        dissect_elasticsearch_binary(tvb,pinfo,elasticsearch_tree,offset);
+    }
 
 }
 
@@ -471,7 +509,8 @@ void proto_reg_handoff_elasticsearch(void) {
 	static dissector_handle_t elasticsearch_handle;
 
 	elasticsearch_handle = create_dissector_handle(dissect_elasticsearch, proto_elasticsearch);
-	dissector_add_uint("udp.port", ELASTICSEARCH_DISCOVERY_PORT, elasticsearch_handle); // FIXME: Use the #define macro for the port
+	dissector_add_uint("udp.port", ELASTICSEARCH_DISCOVERY_PORT, elasticsearch_handle);
+	dissector_add_uint("tcp.port", ELASTICSEARCH_BINARY_PORT, elasticsearch_handle);
 
 }
 
