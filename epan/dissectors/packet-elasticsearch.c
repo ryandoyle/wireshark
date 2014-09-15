@@ -47,6 +47,7 @@ typedef struct {
 
 static int proto_elasticsearch = -1;
 
+/* Fields */
 static int hf_elasticsearch_internal_header = -1;
 static int hf_elasticsearch_version = -1;
 static int hf_elasticsearch_ping_request_id = -1;
@@ -63,13 +64,14 @@ static int hf_elasticsearch_address_ipv4 = -1;
 static int hf_elasticsearch_address_ipv6 = -1;
 static int hf_elasticsearch_address_ipv6_scope_id = -1;
 static int hf_elasticsearch_attributes_length = -1;
-
-
 static int hf_elasticsearch_address_port = -1;
+
+/* Trees */
 static gint ett_elasticsearch = -1;
-
-
 static gint ett_elasticsearch_address = -1;
+static gint ett_elasticsearch_discovery_node = -1;
+
+
 static const value_string address_types[] = {
     { 0x0, "Dummy" },
     { 0x1, "Inet Socket" },
@@ -212,6 +214,7 @@ void proto_register_elasticsearch(void) {
 	static gint *ett[] = {
 			&ett_elasticsearch,
 			&ett_elasticsearch_address,
+			&ett_elasticsearch_discovery_node,
 	};
 
 	proto_elasticsearch = proto_register_protocol(
@@ -360,6 +363,8 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     vstring_t host_address;
     vint_t attributes_length;
     version_t node_version;
+    proto_tree *discovery_node_tree;
+    proto_item *discovery_node_item;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -386,38 +391,42 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     col_append_fstr(pinfo->cinfo, COL_INFO, ", cluster: %s", cluster_name.value);
     offset += cluster_name.length;
 
+
+    /* Discovery node tree */
+    discovery_node_tree = proto_tree_add_subtree(tree, tvb, offset, -1, ett_elasticsearch_discovery_node, &discovery_node_item, "Node" );
+
     /* Node name */
     node_name = read_vstring(tvb, offset);
-    proto_tree_add_string(tree, hf_elasticsearch_node_name, tvb, offset, node_name.length, node_name.value);
+    proto_tree_add_string(discovery_node_tree, hf_elasticsearch_node_name, tvb, offset, node_name.length, node_name.value);
     col_append_fstr(pinfo->cinfo, COL_INFO, ", name: %s", node_name.value);
     offset += node_name.length;
 
     /* Node ID */
     node_id = read_vstring(tvb, offset);
-    proto_tree_add_string(tree, hf_elasticsearch_node_id, tvb, offset, node_id.length, node_id.value);
+    proto_tree_add_string(discovery_node_tree, hf_elasticsearch_node_id, tvb, offset, node_id.length, node_id.value);
     offset += node_id.length;
 
     /* Hostname */
     host_name = read_vstring(tvb, offset);
-    proto_tree_add_string(tree, hf_elasticsearch_host_name, tvb, offset, host_name.length, host_name.value);
+    proto_tree_add_string(discovery_node_tree, hf_elasticsearch_host_name, tvb, offset, host_name.length, host_name.value);
     offset += host_name.length;
 
     /* Host address */
     host_address = read_vstring(tvb, offset);
-    proto_tree_add_string(tree, hf_elasticsearch_host_address, tvb, offset, host_address.length, host_address.value);
+    proto_tree_add_string(discovery_node_tree, hf_elasticsearch_host_address, tvb, offset, host_address.length, host_address.value);
     offset += host_address.length;
 
     /* Address */
-    offset = partial_dissect_address(tvb, pinfo, tree, offset);
+    offset = partial_dissect_address(tvb, pinfo, discovery_node_tree, offset);
 
     /* Attributes. These are zero for discovery packets */
     attributes_length = read_vint(tvb, offset);
-    proto_tree_add_uint(tree, hf_elasticsearch_attributes_length, tvb, offset, attributes_length.length, attributes_length.value);
+    proto_tree_add_uint(discovery_node_tree, hf_elasticsearch_attributes_length, tvb, offset, attributes_length.length, attributes_length.value);
     offset += attributes_length.length;
 
     /* Version again */
     node_version = read_version(tvb, offset);
-    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value,
+    proto_tree_add_uint_format_value(discovery_node_tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value,
             "%d (%s)" ,node_version.value, node_version.string);
     offset += node_version.length;
 
