@@ -21,7 +21,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 #include "config.h"
-
+version
 #include <epan/packet.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
@@ -40,6 +40,12 @@ typedef struct {
     char *value;
 } vstring_t;
 
+typedef struct {
+    int length;
+    int value;
+    char string[9];
+} version_t;
+
 static int proto_elasticsearch = -1;
 
 static int hf_elasticsearch_internal_header = -1;
@@ -57,13 +63,14 @@ static int hf_elasticsearch_address_length = -1;
 static int hf_elasticsearch_address_ipv4 = -1;
 static int hf_elasticsearch_address_ipv6 = -1;
 static int hf_elasticsearch_address_ipv6_scope_id = -1;
+static int hf_elasticsearch_attributes_length = -1;
+
+
 static int hf_elasticsearch_address_port = -1;
-
-
 static gint ett_elasticsearch = -1;
+
+
 static gint ett_elasticsearch_address = -1;
-
-
 static const value_string address_types[] = {
     { 0x0, "Dummy" },
     { 0x1, "Inet Socket" },
@@ -193,6 +200,14 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
+        { &hf_elasticsearch_attributes_length,
+          { "Attributes length", "elasticsearch.attributes.length",
+            FT_UINT32, BASE_DEC,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+
     };
 
 	static gint *ett[] = {
@@ -324,14 +339,28 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
 }
 
+static version_t read_version(tvbuff_t *tvb, int offset){
+    version_t version;
+    vint_t raw_version_value;
+
+    raw_version_value = read_vint(tvb, offset);
+    version.length = raw_version_value.length;
+    version.value = raw_version_value.value;
+    g_snprintf(version.string, sizeof(version.string), "%d.%d.%d", (version.value / 1000000) % 100,
+            (version.value / 10000) % 100, (version.value/ 100) % 100);
+
+    return version;
+}
+
 static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
-    vint_t version;
-    char version_string[9]; /* semantic style versioning 10.99.88 */
+    version_t version;
     vstring_t cluster_name;
     vstring_t node_name;
     vstring_t node_id;
     vstring_t host_name;
     vstring_t host_address;
+    vint_t attributes_length;
+    version_t node_version;
 
 	/* Let the user know its a discovery packet */
 	col_set_str(pinfo->cinfo, COL_INFO, "Zen Ping: ");
@@ -342,12 +371,10 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 	offset += 4;
 
     /* Add the variable length encoded version string */
-    version = read_vint(tvb, offset);
-    g_snprintf(version_string, sizeof(version_string), "%d.%d.%d", (version.value / 1000000) % 100,
-        (version.value / 10000) % 100, (version.value/ 100) % 100);
+    version = read_version(tvb, offset);
     proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, version.length, version.value,
-        "%d (%s)" ,version.value, version_string);
-    col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version_string);
+        "%d (%s)" ,version.value, version.string);
+    col_append_fstr(pinfo->cinfo, COL_INFO, "v%s", version.string);
     offset += version.length;
 
     /* Ping request ID */
@@ -381,7 +408,19 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     proto_tree_add_string(tree, hf_elasticsearch_host_address, tvb, offset, host_address.length, host_address.value);
     offset += host_address.length;
 
+    /* Address */
     offset = partial_dissect_address(tvb, pinfo, tree, offset);
+
+    /* Attributes. These are zero for discovery packets */
+    attributes_length = read_vint(tvb, offset);
+    proto_tree_add_uint(tree, hf_elasticsearch_attributes_length, tvb, offset, attributes_length.length, attributes_length.value);
+    offset += attributes_length.length;
+
+    /* Version again */
+    node_version = read_version(tvb, offset);
+    proto_tree_add_uint_format_value(tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value,
+            "%d (%s)" ,node_version.value, node_version.string);
+    offset += node_version.length;
 
 	(void)offset;
 	(void)tree;
@@ -424,7 +463,7 @@ void proto_reg_handoff_elasticsearch(void) {
 	static dissector_handle_t elasticsearch_handle;
 
 	elasticsearch_handle = create_dissector_handle(dissect_elasticsearch, proto_elasticsearch);
-	dissector_add_uint("udp.port", 54328, elasticsearch_handle); // FIXME: Use the #define macro for the port
+	dissector_add_uint("udp.port", ELASTICSEARCH_DISCOVERY_PORT, elasticsearch_handle); // FIXME: Use the #define macro for the port
 
 }
 
