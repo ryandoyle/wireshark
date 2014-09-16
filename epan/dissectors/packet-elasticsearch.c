@@ -21,6 +21,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 #include "config.h"
+#include "packet-tcp.h"
 #include <epan/packet.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
@@ -30,6 +31,7 @@
 #define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1 // 001
 #define ELASTICSEARCH_STATUS_FLAG_ERROR 2    // 010
 #define ELASTICSEARCH_VERSION_LENGTH_STRING 19 // This many characters: XX.XX.XX (XXXXXXXX)
+#define ELASTICSEARCH_HEADER_LENGTH 6 // Bytes 3-6 are the length, 1-2 is the magic number
 
 typedef struct {
     int length;
@@ -517,8 +519,9 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
 }
 
-static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_){
 
+    int offset = 0;
     gint8 transport_status_flags;
     gint64 request_id;
     proto_item *transport_status_flags_item;
@@ -577,16 +580,18 @@ static void dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, prot
 
     /* Message headers: org.elasticsearch.transport.TransportMessage#writeTo */
 
-
-
-    (void)transport_status_flags_item;
-    (void)transport_status_flags_tree;
-    (void)pinfo;
-    (void)offset;
+    return offset;
 
 }
 
-static void dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree){
+/* message length for tcp_dissect_pdus */
+static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
+{
+    /* length is two bytes into the packet */
+    return (guint)tvb_get_ntohl(tvb, offset+2) + ELASTICSEARCH_HEADER_LENGTH;
+}
+
+static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data){
 
 	int offset = 0;
 	proto_item *root_elasticsearch_item;
@@ -605,16 +610,17 @@ static void dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
 	}
     /* Are we using TCP? And therefore the binary protocol? */
     if(pinfo->ptype == PT_TCP){
-        dissect_elasticsearch_binary(tvb,pinfo,elasticsearch_tree,offset);
+        /* pass all packets through TCP-reassembally */
+        tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
     }
-
+    return tvb_length(tvb);
 }
 
 void proto_reg_handoff_elasticsearch(void) {
 
-	static dissector_handle_t elasticsearch_handle;
+    dissector_handle_t elasticsearch_handle;
 
-	elasticsearch_handle = create_dissector_handle(dissect_elasticsearch, proto_elasticsearch);
+	elasticsearch_handle = new_create_dissector_handle(dissect_elasticsearch, proto_elasticsearch);
 	dissector_add_uint("udp.port", ELASTICSEARCH_DISCOVERY_PORT, elasticsearch_handle);
 	dissector_add_uint("tcp.port", ELASTICSEARCH_BINARY_PORT, elasticsearch_handle);
 
