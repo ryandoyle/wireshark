@@ -528,6 +528,11 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
     proto_tree *transport_status_flags_tree;
     vstring_t action;
 
+    /* Dissects:
+     * Request:  org.elasticsearch.transport.netty.NettyTransport#sendRequest
+     * Response: org.elasticsearch.transport.netty.NettyTransportChannel#sendResponse
+     */
+
     /* org.elasticsearch.transport.netty.NettyHeader#writeHeader
     *
     * Magic number
