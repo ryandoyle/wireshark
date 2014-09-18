@@ -33,6 +33,9 @@
 #define ELASTICSEARCH_VERSION_LENGTH_STRING 19 // This many characters: XX.XX.XX (XXXXXXXX)
 #define ELASTICSEARCH_HEADER_LENGTH 6 // Bytes 3-6 are the length, 1-2 is the magic number
 
+#define ELASTICSEARCH_MESSAGE_LENGTH_OFFSET 2
+#define ELASTICSEARCH_BINARY_HEADER_TOKEN 0x4553
+#define BITS_IN_A_BYTE 8
 typedef struct {
     int length;
     int value;
@@ -519,6 +522,21 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
 }
 
+static int elasticsearch_binary_header_is_valid(tvbuff_t *tvb){
+    /* Header was introduced in V0.20.0RC1. At the moment I'm not supporting versions before this
+    *  See: org.elasticsearch.transport.netty.NettyHeader#writeHeader
+    * */
+    return tvb_length(tvb) >= 1 && tvb_get_ntohs(tvb, 0) == ELASTICSEARCH_BINARY_HEADER_TOKEN;
+}
+
+static int transport_status_flag_is_a_response(gint8 transport_status_flags) {
+    return transport_status_flags & ELASTICSEARCH_STATUS_FLAG_RESPONSE;
+}
+
+static int transport_status_flag_is_a_request(gint8 transport_status_flags){
+    return !transport_status_flag_is_a_response(transport_status_flags);
+}
+
 static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_){
 
     int offset = 0;
@@ -553,14 +571,14 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
     transport_status_flags = tvb_get_guint8(tvb, offset);
     transport_status_flags_item = proto_tree_add_uint(tree, hf_elasticsearch_header_status_flags, tvb, offset, 1, transport_status_flags);
     transport_status_flags_tree = proto_item_add_subtree(transport_status_flags_item, ett_elasticsearch_status_flags);
-    if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_RESPONSE){
+    if(transport_status_flag_is_a_response(transport_status_flags)){
         col_append_str(pinfo->cinfo, COL_INFO, "Response: ");
     } else {
         col_append_str(pinfo->cinfo, COL_INFO, "Request: ");
     }
-    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_compression, tvb, offset * 8 + 5, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_error, tvb, offset * 8 + 6, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_message_type, tvb, offset * 8 + 7, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_compression, tvb, offset * BITS_IN_A_BYTE + 5, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_error, tvb, offset * BITS_IN_A_BYTE + 6, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_bits_item(transport_status_flags_tree, hf_elasticsearch_header_status_flags_message_type, tvb, offset * BITS_IN_A_BYTE + 7, 1, ENC_BIG_ENDIAN);
     offset += 1;
 
     /* Version  */
@@ -568,7 +586,7 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
     offset += 4;
 
     /* Only requests have actions */
-    if (!(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_RESPONSE)) {
+    if (transport_status_flag_is_a_request(transport_status_flags)) {
         action = read_vstring(tvb, offset);
         proto_tree_add_string(tree, hf_elasticsearch_action, tvb, offset, action.length, action.value);
         col_append_fstr(pinfo->cinfo, COL_INFO, "action=%s, ", action.value);
@@ -589,11 +607,10 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
 
 }
 
-/* message length for tcp_dissect_pdus */
 static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
 {
-    /* length is two bytes into the packet */
-    return (guint)tvb_get_ntohl(tvb, offset+2) + ELASTICSEARCH_HEADER_LENGTH;
+    /* length is two bytes into the packet, also the length doesn't include the starting 6 bytes */
+    return (guint)tvb_get_ntohl(tvb, offset+ELASTICSEARCH_MESSAGE_LENGTH_OFFSET) + ELASTICSEARCH_HEADER_LENGTH;
 }
 
 static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data){
