@@ -76,7 +76,7 @@ static int hf_elasticsearch_address_ipv6 = -1;
 static int hf_elasticsearch_address_ipv6_scope_id = -1;
 static int hf_elasticsearch_attributes_length = -1;
 static int hf_elasticsearch_address_port = -1;
-static int hf_elasticsearch_header_magic_number = -1;
+static int hf_elasticsearch_header_token = -1;
 static int hf_elasticsearch_header_message_length = -1;
 static int hf_elasticsearch_header_request_id = -1;
 static int hf_elasticsearch_header_status_flags = -1;
@@ -244,8 +244,8 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
-        { &hf_elasticsearch_header_magic_number,
-          { "Magic number", "elasticsearch.header.magic_number",
+        { &hf_elasticsearch_header_token,
+          { "Token", "elasticsearch.header.token",
             FT_STRING, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL
@@ -616,9 +616,9 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
 
     /* org.elasticsearch.transport.netty.NettyHeader#writeHeader
     *
-    * Magic number
+    * Token/Magic number that is at the start of all ES packets
     */
-    proto_tree_add_item(tree, hf_elasticsearch_header_magic_number, tvb, offset, 2, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_elasticsearch_header_token, tvb, offset, 2, ENC_BIG_ENDIAN);
     offset += 2;
 
     /* Message length */
