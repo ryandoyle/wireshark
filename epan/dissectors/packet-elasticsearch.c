@@ -23,6 +23,7 @@
 #include "config.h"
 #include "packet-tcp.h"
 #include <epan/packet.h>
+#include <epan/expert.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
 #define ELASTICSEARCH_BINARY_PORT 9300
@@ -81,6 +82,11 @@ static int hf_elasticsearch_header_status_flags_message_type = -1;
 static int hf_elasticsearch_header_status_flags_error = -1;
 static int hf_elasticsearch_header_status_flags_compression = -1;
 static int hf_elasticsearch_action = -1;
+static int hf_elasticsearch_data = -1;
+
+/* Expert info */
+static expert_field ei_elasticsearch_unsupported_version = EI_INIT;
+
 
 /* Trees */
 static gint ett_elasticsearch = -1;
@@ -291,6 +297,13 @@ void proto_register_elasticsearch(void) {
             NULL, HFILL
           }
         },
+        { &hf_elasticsearch_data,
+          { "Data", "elasticsearch.data",
+            FT_NONE, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
 
     };
 
@@ -300,6 +313,15 @@ void proto_register_elasticsearch(void) {
 			&ett_elasticsearch_discovery_node,
             &ett_elasticsearch_status_flags,
 	};
+
+    static ei_register_info ei[] = {
+            { &ei_elasticsearch_unsupported_version, { "elasticsearch.version.unsupported", PI_UNDECODED, PI_WARN, "Unsupported header type: Elasticsearch version < 0.20.0RC1", EXPFILL }},
+    };
+
+    expert_module_t*expert_elasticsearch;
+
+    expert_elasticsearch = expert_register_protocol(proto_elasticsearch);
+    expert_register_field_array(expert_elasticsearch, ei, array_length(ei));
 
 	proto_elasticsearch = proto_register_protocol(
 			"Elasticsearch",
@@ -630,10 +652,20 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 	if(pinfo->ptype == PT_UDP){
 		dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
 	}
+
     /* Are we using TCP? And therefore the binary protocol? */
     if(pinfo->ptype == PT_TCP){
+        /* If the packet is not part of reassembly, check the header first to make sure it is a version
+         * we support passing through TCP reassembly
+         */
+        if(!elasticsearch_binary_header_is_valid(tvb)){
+            proto_tree_add_item(elasticsearch_tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+            expert_add_info(pinfo, elasticsearch_tree, &ei_elasticsearch_unsupported_version);
+            return tvb_length(tvb);
+        }
         /* pass all packets through TCP-reassembally */
         tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
+        /* FIXME: Length is reported wrong */
     }
     return tvb_length(tvb);
 }
