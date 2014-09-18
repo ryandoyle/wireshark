@@ -29,8 +29,10 @@
 #define ELASTICSEARCH_BINARY_PORT 9300
 
 #define IPv4_ADDRESS_LENGTH 4
-#define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1 // 001
-#define ELASTICSEARCH_STATUS_FLAG_ERROR 2    // 010
+#define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1   // 001
+#define ELASTICSEARCH_STATUS_FLAG_ERROR 2      // 010
+#define ELASTICSEARCH_STATUS_FLAG_COMPRESSED 4 // 100
+
 #define ELASTICSEARCH_VERSION_LENGTH_STRING 19 // This many characters: XX.XX.XX (XXXXXXXX)
 #define ELASTICSEARCH_HEADER_LENGTH 6 // Bytes 3-6 are the length, 1-2 is the magic number
 
@@ -83,6 +85,7 @@ static int hf_elasticsearch_header_status_flags_error = -1;
 static int hf_elasticsearch_header_status_flags_compression = -1;
 static int hf_elasticsearch_action = -1;
 static int hf_elasticsearch_data = -1;
+static int hf_elasticsearch_data_compressed = -1;
 
 /* Expert info */
 static expert_field ei_elasticsearch_unsupported_version = EI_INIT;
@@ -299,6 +302,13 @@ void proto_register_elasticsearch(void) {
         },
         { &hf_elasticsearch_data,
           { "Data", "elasticsearch.data",
+            FT_NONE, BASE_NONE,
+            NULL, 0x0,
+            NULL, HFILL
+          }
+        },
+        { &hf_elasticsearch_data_compressed,
+          { "Compressed data", "elasticsearch.data_compressed",
             FT_NONE, BASE_NONE,
             NULL, 0x0,
             NULL, HFILL
@@ -559,6 +569,38 @@ static int transport_status_flag_is_a_request(gint8 transport_status_flags){
     return !transport_status_flag_is_a_response(transport_status_flags);
 }
 
+static int elasticsearch_is_compressed(gint8 transport_status_flags){
+
+    return transport_status_flags & ELASTICSEARCH_STATUS_FLAG_COMPRESSED;
+}
+
+static void decode_binary_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
+
+    vstring_t action;
+
+    if(elasticsearch_is_compressed(transport_status_flags)){
+        proto_tree_add_item(tree, hf_elasticsearch_data_compressed, tvb, offset, -1, ENC_NA);
+        col_append_str(pinfo->cinfo, COL_INFO, "[COMPRESSED], ");
+
+    } else {
+        action = read_vstring(tvb, offset);
+        proto_tree_add_string(tree, hf_elasticsearch_action, tvb, offset, action.length, action.value);
+        col_append_fstr(pinfo->cinfo, COL_INFO, "action=%s, ", action.value);
+        offset += action.length;
+        proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+    }
+}
+
+void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
+    if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_ERROR){
+        col_append_str(pinfo->cinfo, COL_INFO, "[ERROR], ");
+    }else{
+        col_append_str(pinfo->cinfo, COL_INFO, "[OK], ");
+    }
+    proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+
+}
+
 static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_){
 
     int offset = 0;
@@ -566,7 +608,6 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
     gint64 request_id;
     proto_item *transport_status_flags_item;
     proto_tree *transport_status_flags_tree;
-    vstring_t action;
 
     /* Dissects:
      * Request:  org.elasticsearch.transport.netty.NettyTransport#sendRequest
@@ -609,24 +650,12 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
 
     /* Only requests have actions */
     if (transport_status_flag_is_a_request(transport_status_flags)) {
-        action = read_vstring(tvb, offset);
-        proto_tree_add_string(tree, hf_elasticsearch_action, tvb, offset, action.length, action.value);
-        col_append_fstr(pinfo->cinfo, COL_INFO, "action=%s, ", action.value);
-        offset += action.length;
+        decode_binary_request(tvb, pinfo, tree, offset, transport_status_flags);
     } else {
-        if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_ERROR){
-            col_append_str(pinfo->cinfo, COL_INFO, "[ERROR], ");
-        }else{
-            col_append_str(pinfo->cinfo, COL_INFO, "[OK], ");
-        }
+        decode_binary_response(tvb, pinfo, tree, offset, transport_status_flags);
     }
     col_append_fstr(pinfo->cinfo, COL_INFO, "request_id=%lu ", request_id);
 
-
-    /* Message headers: org.elasticsearch.transport.TransportMessage#writeTo */
-
-    /* TODO: Dissect more data for each of the message types */
-    proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
 
     /* Everything is marked as data, return the whole tvb as the length */
     return tvb_length(tvb);
