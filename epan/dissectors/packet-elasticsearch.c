@@ -625,8 +625,11 @@ static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto
 
     /* Message headers: org.elasticsearch.transport.TransportMessage#writeTo */
 
-    return offset;
+    /* TODO: Dissect more data for each of the message types */
+    proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
 
+    /* Everything is marked as data, return the whole tvb as the length */
+    return tvb_length(tvb);
 }
 
 static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
