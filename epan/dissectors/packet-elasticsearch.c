@@ -668,7 +668,6 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
         }
         /* pass all packets through TCP-reassembally */
         tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
-        /* FIXME: Length is reported wrong */
     }
     return tvb_length(tvb);
 }
