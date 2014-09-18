@@ -591,13 +591,22 @@ static void decode_binary_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
     }
 }
 
-void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
+void append_status_info_to_column(packet_info *pinfo, gint8 transport_status_flags) {
     if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_ERROR){
         col_append_str(pinfo->cinfo, COL_INFO, "[ERROR], ");
     }else{
         col_append_str(pinfo->cinfo, COL_INFO, "[OK], ");
     }
-    proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+}
+
+void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
+    append_status_info_to_column(pinfo, transport_status_flags);
+    if(elasticsearch_is_compressed(transport_status_flags)){
+        col_append_str(pinfo->cinfo, COL_INFO, "[COMPRESSED], ");
+        proto_tree_add_item(tree, hf_elasticsearch_data_compressed, tvb, offset, -1, ENC_NA);
+    } else {
+        proto_tree_add_item(tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+    }
 
 }
 
