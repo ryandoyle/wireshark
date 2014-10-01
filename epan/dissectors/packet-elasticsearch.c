@@ -27,6 +27,7 @@
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
 #define ELASTICSEARCH_BINARY_PORT 9300
+#define ELASTICSEARCH_HTTP_PORT 9200
 
 #define IPv4_ADDRESS_LENGTH 4
 #define ELASTICSEARCH_STATUS_FLAG_RESPONSE 1   // 001
@@ -56,6 +57,7 @@ typedef struct {
     char string[9];
 } version_t;
 
+static dissector_handle_t elasticsearch_http_handle;
 static int proto_elasticsearch = -1;
 
 /* Fields */
@@ -696,16 +698,19 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 
     /* Are we using TCP? And therefore the binary protocol? */
     if(pinfo->ptype == PT_TCP){
-        /* If the packet is not part of reassembly, check the header first to make sure it is a version
-         * we support passing through TCP reassembly
-         */
-        if(!elasticsearch_binary_header_is_valid(tvb)){
-            proto_tree_add_item(elasticsearch_tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
-            expert_add_info(pinfo, elasticsearch_tree, &ei_elasticsearch_unsupported_version);
-            return tvb_length(tvb);
+        if(pinfo->srcport == ELASTICSEARCH_BINARY_PORT || pinfo->destport == ELASTICSEARCH_BINARY_PORT){
+            if(!elasticsearch_binary_header_is_valid(tvb)){
+                proto_tree_add_item(elasticsearch_tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+                expert_add_info(pinfo, elasticsearch_tree, &ei_elasticsearch_unsupported_version);
+            } else {
+                /* pass all packets through TCP-reassembly */
+                tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
+            }
+        } else if(pinfo->srcport == ELASTICSEARCH_HTTP_PORT || pinfo->destport == ELASTICSEARCH_HTTP_PORT) {
+            call_dissector(elasticsearch_http_handle, tvb, pinfo, elasticsearch_tree);
+            /* Reset the protocol name to Elasticsearch as calling the dissector sets it to its protocol */
+            col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
         }
-        /* pass all packets through TCP-reassembally */
-        tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
     }
     return tvb_length(tvb);
 }
@@ -713,10 +718,12 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 void proto_reg_handoff_elasticsearch(void) {
 
     dissector_handle_t elasticsearch_handle;
+    elasticsearch_http_handle = find_dissector("http");
 
 	elasticsearch_handle = new_create_dissector_handle(dissect_elasticsearch, proto_elasticsearch);
 	dissector_add_uint("udp.port", ELASTICSEARCH_DISCOVERY_PORT, elasticsearch_handle);
 	dissector_add_uint("tcp.port", ELASTICSEARCH_BINARY_PORT, elasticsearch_handle);
+    dissector_add_uint("tcp.port", ELASTICSEARCH_HTTP_PORT, elasticsearch_handle);
 
 }
 
