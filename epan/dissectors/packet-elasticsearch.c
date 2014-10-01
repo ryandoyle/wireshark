@@ -100,6 +100,9 @@ static gint ett_elasticsearch_discovery_node = -1;
 static gint ett_elasticsearch_status_flags = -1;
 
 
+static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree);
+static void dissect_elasticsearch_binary_protocol(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree);
+
 static const value_string address_types[] = {
     { 0x0, "Dummy" },
     { 0x1, "Inet Socket" },
@@ -593,7 +596,7 @@ static void decode_binary_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree 
     }
 }
 
-void append_status_info_to_column(packet_info *pinfo, gint8 transport_status_flags) {
+static void append_status_info_to_column(packet_info *pinfo, gint8 transport_status_flags) {
     if(transport_status_flags & ELASTICSEARCH_STATUS_FLAG_ERROR){
         col_append_str(pinfo->cinfo, COL_INFO, "[ERROR], ");
     }else{
@@ -601,7 +604,7 @@ void append_status_info_to_column(packet_info *pinfo, gint8 transport_status_fla
     }
 }
 
-void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
+static void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags) {
     append_status_info_to_column(pinfo, transport_status_flags);
     if(elasticsearch_is_compressed(transport_status_flags)){
         col_append_str(pinfo->cinfo, COL_INFO, "[COMPRESSED], ");
@@ -612,7 +615,7 @@ void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree,
 
 }
 
-static int dissect_elasticsearch_binary(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_){
+static int dissect_valid_elasticsearch_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_){
 
     int offset = 0;
     gint8 transport_status_flags;
@@ -695,24 +698,32 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 	if(pinfo->ptype == PT_UDP){
 		dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
 	}
-
-    /* Are we using TCP? And therefore the binary protocol? */
+    /* All other operations go through TCP */
     if(pinfo->ptype == PT_TCP){
-        if(pinfo->srcport == ELASTICSEARCH_BINARY_PORT || pinfo->destport == ELASTICSEARCH_BINARY_PORT){
-            if(!elasticsearch_binary_header_is_valid(tvb)){
-                proto_tree_add_item(elasticsearch_tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
-                expert_add_info(pinfo, elasticsearch_tree, &ei_elasticsearch_unsupported_version);
-            } else {
-                /* pass all packets through TCP-reassembly */
-                tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH, get_elasticsearch_binary_message_len, dissect_elasticsearch_binary, data);
-            }
-        } else if(pinfo->srcport == ELASTICSEARCH_HTTP_PORT || pinfo->destport == ELASTICSEARCH_HTTP_PORT) {
-            call_dissector(elasticsearch_http_handle, tvb, pinfo, elasticsearch_tree);
-            /* Reset the protocol name to Elasticsearch as calling the dissector sets it to its protocol */
-            col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
-        }
+        dissect_elasticsearch_tcp_message_types(tvb, pinfo, data, offset, elasticsearch_tree);
     }
     return tvb_length(tvb);
+}
+
+static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree) {
+    if(pinfo->srcport == ELASTICSEARCH_BINARY_PORT || pinfo->destport == ELASTICSEARCH_BINARY_PORT){
+        dissect_elasticsearch_binary_protocol(tvb, pinfo, data, offset, elasticsearch_tree);
+    } else if(pinfo->srcport == ELASTICSEARCH_HTTP_PORT || pinfo->destport == ELASTICSEARCH_HTTP_PORT) {
+        call_dissector(elasticsearch_http_handle, tvb, pinfo, elasticsearch_tree);
+        /* Reset the protocol name to Elasticsearch as calling the dissector sets it to its protocol */
+        col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
+    }
+}
+
+static void dissect_elasticsearch_binary_protocol(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree) {
+    if(elasticsearch_binary_header_is_valid(tvb)){
+        /* pass all packets through TCP-reassembly */
+        tcp_dissect_pdus(tvb, pinfo, elasticsearch_tree, TRUE, ELASTICSEARCH_HEADER_LENGTH,
+                get_elasticsearch_binary_message_len, dissect_valid_elasticsearch_binary_packet, data);
+    } else {
+        proto_tree_add_item(elasticsearch_tree, hf_elasticsearch_data, tvb, offset, -1, ENC_NA);
+        expert_add_info(pinfo, elasticsearch_tree, &ei_elasticsearch_unsupported_version);
+    }
 }
 
 void proto_reg_handoff_elasticsearch(void) {
