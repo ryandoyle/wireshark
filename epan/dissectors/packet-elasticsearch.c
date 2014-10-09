@@ -22,7 +22,6 @@
  */
 #include "config.h"
 #include "packet-tcp.h"
-#include <epan/packet.h>
 #include <epan/expert.h>
 
 #define ELASTICSEARCH_DISCOVERY_PORT 54328
@@ -548,15 +547,8 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
 
     /* Version again */
     node_version = parse_elasticsearch_version(tvb, offset);
-    proto_tree_add_uint_format_value(discovery_node_tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value,
-            "%d (%s)" ,node_version.value, node_version.string);
+    proto_tree_add_uint(tree, hf_elasticsearch_version, tvb, offset, node_version.length, node_version.value);
     offset += node_version.length;
-
-	(void)offset;
-	(void)tree;
-	(void)tvb;
-    (void)version;
-
 }
 
 static int elasticsearch_binary_header_is_valid(tvbuff_t *tvb){
