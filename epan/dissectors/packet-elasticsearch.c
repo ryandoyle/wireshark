@@ -99,7 +99,7 @@ static gint ett_elasticsearch_discovery_node = -1;
 static gint ett_elasticsearch_status_flags = -1;
 
 
-static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree);
+static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree, proto_tree *root_tree);
 static void dissect_elasticsearch_binary_protocol(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree);
 
 static const value_string address_types[] = {
@@ -692,18 +692,20 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
 	}
     /* All other operations go through TCP */
     if(pinfo->ptype == PT_TCP){
-        dissect_elasticsearch_tcp_message_types(tvb, pinfo, data, offset, elasticsearch_tree);
+        dissect_elasticsearch_tcp_message_types(tvb, pinfo, data, offset, elasticsearch_tree, tree);
     }
     return tvb_length(tvb);
 }
 
-static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree) {
+static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset,
+        proto_tree *elasticsearch_tree, proto_tree *root_tree) {
+
     if(pinfo->srcport == ELASTICSEARCH_BINARY_PORT || pinfo->destport == ELASTICSEARCH_BINARY_PORT){
         dissect_elasticsearch_binary_protocol(tvb, pinfo, data, offset, elasticsearch_tree);
     } else if(pinfo->srcport == ELASTICSEARCH_HTTP_PORT || pinfo->destport == ELASTICSEARCH_HTTP_PORT) {
-        call_dissector(elasticsearch_http_handle, tvb, pinfo, elasticsearch_tree);
-        /* Reset the protocol name to Elasticsearch as calling the dissector sets it to its protocol */
-        col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
+        /* Restore count before as we want the HTTP dissector to do desegmentation */
+        pinfo->can_desegment = pinfo->saved_can_desegment;
+        call_dissector(elasticsearch_http_handle, tvb, pinfo, root_tree);
     }
 }
 
