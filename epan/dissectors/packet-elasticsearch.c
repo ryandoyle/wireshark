@@ -1,6 +1,6 @@
 /* packet-elasticsearch.c
  *
- * Routines for disecting Elasticsearch
+ * Routines for dissecting Elasticsearch
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
