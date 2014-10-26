@@ -376,7 +376,8 @@ static vint_t read_vint(tvbuff_t *tvb, int offset){
         return vint;
     }
     b = tvb_get_guint8(tvb, offset+4); 
-    // FIXME: need some assertion like assert (b & 0x80) == 0; 
+    /* Fifth byte must follow this bitmask to be a valid terminator of the variable-length integer */
+    DISSECTOR_ASSERT((b & 0x80) == 0);
     vint.length = 5;
     vint.value |= ((b & 0x7F) << 28);
     return vint;
