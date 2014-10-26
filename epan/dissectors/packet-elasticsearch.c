@@ -98,9 +98,24 @@ static gint ett_elasticsearch_address = -1;
 static gint ett_elasticsearch_discovery_node = -1;
 static gint ett_elasticsearch_status_flags = -1;
 
-
+/* Forward declarations */
 static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree, proto_tree *root_tree);
 static void dissect_elasticsearch_binary_protocol(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset, proto_tree *elasticsearch_tree);
+static void elasticsearch_version_base(gchar *buf, guint32 value);
+static vint_t read_vint(tvbuff_t *tvb, int offset);
+static vstring_t read_vstring(tvbuff_t *tvb, int offset);
+static int partial_dissect_address(tvbuff_t *tvb, proto_tree *tree, int offset);
+static version_t parse_elasticsearch_version(tvbuff_t *tvb, int offset);
+static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset);
+static int elasticsearch_binary_header_is_valid(tvbuff_t *tvb);
+static int transport_status_flag_is_a_response(gint8 transport_status_flags);
+static int elasticsearch_is_compressed(gint8 transport_status_flags);
+static void decode_binary_request(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags);
+static void append_status_info_to_column(packet_info *pinfo, gint8 transport_status_flags);
+static void decode_binary_response(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset, gint8 transport_status_flags);
+static int dissect_valid_elasticsearch_binary_packet(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_);
+static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset);
+static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data);
 
 static const value_string address_types[] = {
     { 0x0, "Dummy" },
@@ -357,25 +372,25 @@ static vint_t read_vint(tvbuff_t *tvb, int offset){
         vint.length = 1;
         return vint;
     }
-    b = tvb_get_guint8(tvb, offset+1); 
+    b = tvb_get_guint8(tvb, offset+1);
     vint.value |= (b & 0x7F) << 7;
     if ((b & 0x80) == 0) {
         vint.length = 2;
         return vint;
     }
-    b = tvb_get_guint8(tvb, offset+2); 
+    b = tvb_get_guint8(tvb, offset+2);
     vint.value |= (b & 0x7F) << 14;
     if ((b & 0x80) == 0) {
         vint.length = 3;
         return vint;
     }
-    b = tvb_get_guint8(tvb, offset+3); 
+    b = tvb_get_guint8(tvb, offset+3);
     vint.value |= (b & 0x7F) << 21;
     if ((b & 0x80) == 0) {
         vint.length = 4;
         return vint;
     }
-    b = tvb_get_guint8(tvb, offset+4); 
+    b = tvb_get_guint8(tvb, offset+4);
     /* Fifth byte must follow this bitmask to be a valid terminator of the variable-length integer */
     DISSECTOR_ASSERT((b & 0x80) == 0);
     vint.length = 5;
@@ -383,19 +398,19 @@ static vint_t read_vint(tvbuff_t *tvb, int offset){
     return vint;
 }
 
-static vstring_t read_vstring(tvbuff_t *tvb, int offset){
-  vstring_t vstring;
-  int string_starting_offset;
-  int string_length;
+static vstring_t read_vstring(tvbuff_t *tvb, int offset) {
+    vstring_t vstring;
+    int string_starting_offset;
+    int string_length;
 
-  vstring.vint_length = read_vint(tvb, offset);
-  string_starting_offset = offset + vstring.vint_length.length;
-  string_length = vstring.vint_length.value;
+    vstring.vint_length = read_vint(tvb, offset);
+    string_starting_offset = offset + vstring.vint_length.length;
+    string_length = vstring.vint_length.value;
 
-  vstring.value = tvb_get_string_enc(wmem_packet_scope(), tvb, string_starting_offset, string_length, ENC_UTF_8);
-  vstring.length = string_length + vstring.vint_length.length;
+    vstring.value = tvb_get_string_enc(wmem_packet_scope(), tvb, string_starting_offset, string_length, ENC_UTF_8);
+    vstring.length = string_length + vstring.vint_length.length;
 
-  return vstring;
+    return vstring;
 }
 
 static int partial_dissect_address(tvbuff_t *tvb, proto_tree *tree, int offset) {
@@ -676,23 +691,23 @@ static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff
     return (guint)tvb_get_ntohl(tvb, offset+ELASTICSEARCH_MESSAGE_LENGTH_OFFSET) + ELASTICSEARCH_HEADER_LENGTH;
 }
 
-static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data){
+static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data) {
 
-	int offset = 0;
-	proto_item *root_elasticsearch_item;
-	proto_tree *elasticsearch_tree;
+    int offset = 0;
+    proto_item *root_elasticsearch_item;
+    proto_tree *elasticsearch_tree;
 
-	col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
-	col_clear(pinfo->cinfo, COL_INFO);
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "Elasticsearch");
+    col_clear(pinfo->cinfo, COL_INFO);
 
-	root_elasticsearch_item = proto_tree_add_item(tree, proto_elasticsearch, tvb, 0, -1, ENC_NA);
-	elasticsearch_tree = proto_item_add_subtree(root_elasticsearch_item,ett_elasticsearch);
+    root_elasticsearch_item = proto_tree_add_item(tree, proto_elasticsearch, tvb, 0, -1, ENC_NA);
+    elasticsearch_tree = proto_item_add_subtree(root_elasticsearch_item,ett_elasticsearch);
 
 
     /* Multicast zen packet */
-	if(pinfo->ptype == PT_UDP){
-		dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
-	}
+    if(pinfo->ptype == PT_UDP){
+        dissect_elasticsearch_zen_ping(tvb,pinfo,elasticsearch_tree,offset);
+    }
     /* All other operations go through TCP */
     if(pinfo->ptype == PT_TCP){
         dissect_elasticsearch_tcp_message_types(tvb, pinfo, data, offset, elasticsearch_tree, tree);
