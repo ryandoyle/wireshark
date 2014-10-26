@@ -576,7 +576,7 @@ static int elasticsearch_binary_header_is_valid(tvbuff_t *tvb){
     /* Header was introduced in V0.20.0RC1. At the moment I'm not supporting versions before this
     *  See: org.elasticsearch.transport.netty.NettyHeader#writeHeader
     * */
-    return tvb_length(tvb) >= 1 && tvb_get_ntohs(tvb, 0) == ELASTICSEARCH_BINARY_HEADER_TOKEN;
+    return tvb_captured_length(tvb) >= 1 && tvb_get_ntohs(tvb, 0) == ELASTICSEARCH_BINARY_HEADER_TOKEN;
 }
 
 static int transport_status_flag_is_a_response(gint8 transport_status_flags) {
@@ -685,7 +685,7 @@ static int dissect_valid_elasticsearch_binary_packet(tvbuff_t *tvb, packet_info 
 
 
     /* Everything is marked as data, return the whole tvb as the length */
-    return tvb_length(tvb);
+    return tvb_captured_length(tvb);
 }
 
 static guint get_elasticsearch_binary_message_len(packet_info *pinfo _U_, tvbuff_t *tvb, int offset)
@@ -715,7 +715,7 @@ static int dissect_elasticsearch(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
     if(pinfo->ptype == PT_TCP){
         dissect_elasticsearch_tcp_message_types(tvb, pinfo, data, offset, elasticsearch_tree, tree);
     }
-    return tvb_length(tvb);
+    return tvb_captured_length(tvb);
 }
 
 static void dissect_elasticsearch_tcp_message_types(tvbuff_t *tvb, packet_info *pinfo, void *data, int offset,
