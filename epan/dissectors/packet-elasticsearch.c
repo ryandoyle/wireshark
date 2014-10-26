@@ -425,29 +425,34 @@ static int partial_dissect_address(tvbuff_t *tvb, proto_tree *tree, int offset) 
     proto_tree_add_item(address_tree, hf_elasticsearch_address_format, tvb, offset, 1, ENC_BIG_ENDIAN);
     offset += 1;
 
-    if (es_address_format == ADDRESS_FORMAT_NUEMRIC){
-      address_length = tvb_get_guint8(tvb, offset);
-      proto_tree_add_item(address_tree, hf_elasticsearch_address_length, tvb, offset, 1, ENC_BIG_ENDIAN);
-      offset += 1;
-      /* Its either IPv4 or IPv6 depending on the length */
-      if(address_length == IPv4_ADDRESS_LENGTH){
-        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv4, tvb, offset, 4, ENC_NA);
-        offset += 4;
-      }
-      else {
-        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6, tvb, offset, 16, ENC_NA);
-        offset += 16;
-        proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6_scope_id, tvb, offset, 4, ENC_BIG_ENDIAN);
-        offset += 4;
-      }
-    }
-    else if (es_address_format == ADDRESS_FORMAT_STRING){
-        address_name = read_vstring(tvb, offset);
-        proto_tree_add_string(address_tree, hf_elasticsearch_address_name, tvb, offset, address_name.length, address_name.value);
-        offset += address_name.length;
-    }
-    else{
-        /* FIXME: shouldn't get here, invalid format type */
+    switch(es_address_format) {
+        case ADDRESS_FORMAT_NUEMRIC:
+            address_length = tvb_get_guint8(tvb, offset);
+            proto_tree_add_item(address_tree, hf_elasticsearch_address_length, tvb, offset, 1, ENC_BIG_ENDIAN);
+            offset += 1;
+            /* Its either IPv4 or IPv6 depending on the length */
+            if (address_length == IPv4_ADDRESS_LENGTH) {
+                proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv4, tvb, offset, 4, ENC_NA);
+                offset += 4;
+            }
+            else {
+                proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6, tvb, offset, 16, ENC_NA);
+                offset += 16;
+                proto_tree_add_item(address_tree, hf_elasticsearch_address_ipv6_scope_id, tvb, offset, 4, ENC_BIG_ENDIAN);
+                offset += 4;
+            }
+            break;
+
+        case ADDRESS_FORMAT_STRING:
+            address_name = read_vstring(tvb, offset);
+            proto_tree_add_string(address_tree, hf_elasticsearch_address_name, tvb, offset, address_name.length, address_name.value);
+            offset += address_name.length;
+            break;
+
+        default:
+            /* Shouldn't get here, invalid format type */
+            DISSECTOR_ASSERT_NOT_REACHED();
+            break;
     }
 
     proto_tree_add_item(address_item, hf_elasticsearch_address_port, tvb, offset, 4, ENC_BIG_ENDIAN);
