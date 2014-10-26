@@ -349,6 +349,7 @@ void proto_register_elasticsearch(void) {
 }
 
 static vint_t read_vint(tvbuff_t *tvb, int offset){
+    /* See: org.elasticsearch.common.io.stream.StreamInput#readVInt */
     vint_t vint;
     guint8 b = tvb_get_guint8(tvb, offset);
     vint.value = b & 0x7F;
