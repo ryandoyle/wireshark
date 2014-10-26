@@ -122,6 +122,7 @@ static const value_string address_types[] = {
     { 0x1, "Inet Socket" },
 #define ADDRESS_TYPE_SOCKET 0x1
     { 0x2, "Local" },
+    { 0, NULL }
 };
 
 static const value_string address_format[] = {
@@ -129,11 +130,13 @@ static const value_string address_format[] = {
     { 0x0, "Numeric" },
 #define ADDRESS_FORMAT_STRING 0x1
     { 0x1, "String" },
+    { 0, NULL }
 };
 
 static const value_string status_flag_message_type[] = {
-        { 0x0, "Request" },
-        { 0x1, "Response" },
+    { 0x0, "Request" },
+    { 0x1, "Response" },
+    { 0, NULL }
 };
 
 static void elasticsearch_version_base(gchar *buf, guint32 value) {
@@ -755,7 +758,7 @@ void proto_reg_handoff_elasticsearch(void) {
 *
 * Local variables:
 * c-basic-offset: 4
-* tab-width: 8
+* tab-width: 4
 * indent-tabs-mode: nil
 * End:
 *
