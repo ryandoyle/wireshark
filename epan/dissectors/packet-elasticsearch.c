@@ -105,6 +105,7 @@ static void dissect_elasticsearch_binary_protocol(tvbuff_t *tvb, packet_info *pi
 static const value_string address_types[] = {
     { 0x0, "Dummy" },
     { 0x1, "Inet Socket" },
+#define ADDRESS_TYPE_SOCKET 0x1
     { 0x2, "Local" },
 };
 
@@ -402,6 +403,7 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     guint8 es_address_format;
     guint8 address_length;
     vstring_t address_name;
+    guint16 address_type_id;
 
     /* Store this away for later */
     start_offset = offset;
@@ -411,9 +413,10 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
 
     /* Address type */
     proto_tree_add_item(address_tree, hf_elasticsearch_address_type, tvb, offset, 2, ENC_BIG_ENDIAN);
+    address_type_id = tvb_get_ntohs(tvb, offset);
+    /* Only socket address types are supported (and only make sense to be supported) */
+    DISSECTOR_ASSERT(address_type_id == ADDRESS_TYPE_SOCKET);
     offset += 2;
-
-    /* ^  FIXME maybe ? - It is possible that there are different address types but these will never be different on the wire */
 
     /* Address format */
     es_address_format = tvb_get_guint8(tvb, offset);
