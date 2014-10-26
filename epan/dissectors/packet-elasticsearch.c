@@ -398,7 +398,7 @@ static vstring_t read_vstring(tvbuff_t *tvb, int offset){
   return vstring;
 }
 
-static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, int offset){
+static int partial_dissect_address(tvbuff_t *tvb, proto_tree *tree, int offset) {
     proto_tree *address_tree;
     proto_item *address_item;
     int start_offset;
@@ -456,14 +456,7 @@ static int partial_dissect_address(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     /* Fix up the length of the subtree */
     proto_item_set_len(address_item, offset - start_offset);
 
-	(void)offset;
-	(void)tree;
-	(void)tvb;
-    (void)pinfo;
-
     return offset;
-    
-
 }
 
 static version_t parse_elasticsearch_version(tvbuff_t *tvb, int offset){
@@ -543,7 +536,7 @@ static void dissect_elasticsearch_zen_ping(tvbuff_t *tvb, packet_info *pinfo, pr
     offset += host_address.length;
 
     /* Address */
-    offset = partial_dissect_address(tvb, pinfo, discovery_node_tree, offset);
+    offset = partial_dissect_address(tvb, discovery_node_tree, offset);
 
     /* Attributes. These are zero for discovery packets */
     attributes_length = read_vint(tvb, offset);
